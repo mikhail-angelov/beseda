@@ -28,6 +28,7 @@ from beseda.brains import BRAINS, Brain
 from beseda.language import Language, available
 from beseda.language import load as load_language
 from beseda.recording import DialogRecorder
+from beseda.microphone import Microphone
 from beseda.stt import clean, recorder_options
 from beseda.tts import TTS_ENGINES, create_engine, speakable
 from beseda.wake import is_hold, is_stop, strip_wake, wake_pattern
@@ -148,6 +149,7 @@ class App:
             )
             self.recorder = AudioToTextRecorder(
                 **recorder_options(args.whisper, args.vocabulary, language),
+                use_microphone=False,  # fed by the echo-cancelling microphone instead of PyAudio
                 spinner=False,
                 level=logging.ERROR,
                 no_log_file=True,
@@ -156,7 +158,7 @@ class App:
                 on_recording_stop=self._on_speech_end,
                 on_recorded_chunk=self.dialog.on_mic if self.dialog else None,
             )
-            self.recorder.set_microphone(False)
+            self.mic = Microphone(self.recorder.feed_audio)
             log.info("components ready in %.1fs", time.monotonic() - started)
         self.console.print(f"[dim]{escape(language.text('log', path=home_relative(log_path)))}[/dim]")
         if self.wake:
@@ -242,14 +244,14 @@ class App:
     def listen_and_reply(self) -> None:
         self.set_status(self.idle_status())
         self.recorder.clear_audio_queue()
-        self.recorder.set_microphone(True)
+        self.mic.on = True
         log.info("listening session=%s", self.session_until is not None)
         self.in_listen = True
         try:
             text = clean(self.recorder.text())
         finally:
             self.in_listen = False
-            self.recorder.set_microphone(False)  # the assistant must not hear itself
+            self.mic.on = False  # the assistant must not hear itself
         if self.stopping.is_set():
             return
         if not (self.active.is_set() and text):
@@ -411,7 +413,7 @@ class App:
             self.active.clear()
             self.interrupt()
             self.end_session("pause")
-            self.recorder.set_microphone(False)
+            self.mic.on = False
             if self.in_listen:
                 self.recorder.abort()  # unblock recorder.text(); blocks if called outside of it
             self.set_status("idle")
@@ -441,9 +443,7 @@ class App:
             termios.tcsetattr(fd, termios.TCSADRAIN, saved)
             self.brain.close()
             self.tts.stop()
-            # RealtimeSTT stops its mic reader process only while the mic flag is on; otherwise the orphaned
-            # reader keeps the microphone (and the macOS mic indicator) busy after exit.
-            self.recorder.set_microphone(True)
+            self.mic.close()
             with contextlib.redirect_stdout(io.StringIO()):  # RealtimeSTT prints its shutdown into the UI
                 self.recorder.shutdown()
             if self.dialog:
@@ -507,7 +507,10 @@ def main() -> None:
         args.wake_word = language.wake_word
     if args.record is True:
         args.record = str(RECORDINGS_DIR / f"beseda-{datetime.now():%Y%m%d-%H%M%S}.wav")
-    App(args, language, setup_logging(args.debug, args.log_days)).run()
+    try:
+        App(args, language, setup_logging(args.debug, args.log_days)).run()
+    except KeyboardInterrupt:  # Ctrl+C quits like q: run() has already cleaned up
+        raise SystemExit(130) from None
 
 
 if __name__ == "__main__":

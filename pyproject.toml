@@ -24,10 +24,12 @@ dependencies = [
     "openai>=3.24.0",
     "pyaudio>=0.2.14",
     "pydub>=0.25.1",
+    "pyobjc-framework-avfoundation>=12.2.2",
     "realtimestt[silero-onnx-cpu,whisper-cpp]>=1.1.2",
     "realtimetts>=0.8.10",
     "resampy>=0.4.3",
     "rich>=15.0.0",
+    "soxr>=1.1.0",
     "torch>=2.14.1",
 ]
 

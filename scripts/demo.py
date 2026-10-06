@@ -11,7 +11,6 @@ The assistant's answers play through the speakers while it records.
 import argparse
 import codecs
 import fcntl
-import functools
 import json
 import os
 import pty
@@ -25,6 +24,7 @@ import termios
 import threading
 import time
 import traceback
+import types
 from pathlib import Path
 
 COLS, ROWS = 100, 24
@@ -56,7 +56,6 @@ def child(language_code: str, marker: Path, recording: Path) -> None:
     """Runs inside the pseudo-terminal: the app with a recorder fed by synthesized speech."""
     import numpy as np
     import resampy
-    from RealtimeSTT import AudioToTextRecorder
 
     import beseda.__main__ as app_module
     from beseda.language import load
@@ -64,7 +63,7 @@ def child(language_code: str, marker: Path, recording: Path) -> None:
     from beseda.tts import SileroEngine
 
     language = load(language_code)
-    app_module.AudioToTextRecorder = functools.partial(AudioToTextRecorder, use_microphone=False)
+    app_module.Microphone = lambda feed: types.SimpleNamespace(on=False, close=lambda: None)  # speech comes from feeder
     args = argparse.Namespace(
         language=language_code, brain="pi", model=None, whisper="small", vocabulary=[], tts="silero", voice=None,
         wake_word=language.wake_word, follow_up=8.0, hold=120.0, record=str(recording), log_days=14, debug=False,

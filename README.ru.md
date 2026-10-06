@@ -27,6 +27,8 @@
 - **Подключаемые «мозги».** Агент [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) (читает и
   правит файлы, запускает команды), [Codex](https://github.com/openai/codex) или обычный чат с DeepSeek;
   другой агент добавляется одним классом.
+- **Работает, когда играет музыка или видео.** Эхоподавление macOS (как в FaceTime) убирает звук динамиков
+  из микрофона; громкость других приложений не меняется.
 - **Наблюдаемость.** Каждая сессия пишет лог с хронологией задержек каждого хода: распознавание, первый токен,
   первый звук, вызовы инструментов.
 - **Запись диалога.** Весь разговор в одном WAV, с реальными паузами.
@@ -175,7 +177,7 @@ grep -E 'ERROR|WARNING' ~/.beseda/logs/*.log   # инциденты
 ```bash
 uv sync
 uv run pytest
-uv tool install --editable .   # команда beseda подхватывает правки в коде
+uv tool install --editable .   # команда beseda подхватывает правки в коде; после смены зависимостей — с --force
 uv run python scripts/demo.py  # перезаписать docs/demo-ru.gif и .mp4; --language en — английское демо (нужно brew install agg ffmpeg)
 git tag vX.Y.Z && git push origin vX.Y.Z   # релиз: CI проверяет и публикует на PyPI (тег должен совпадать с version в pyproject.toml)
 ```

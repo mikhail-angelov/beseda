@@ -27,6 +27,8 @@ microphone → Silero VAD + whisper.cpp (local) → brain: pi agent, Codex or De
 - **Pluggable brains.** The [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) coding agent
   (reads and edits files, runs commands), [Codex](https://github.com/openai/codex) or a plain DeepSeek chat;
   adding another agent is one class.
+- **Works with music or a video playing.** macOS echo cancellation (the one FaceTime uses) removes the sound of
+  the speakers from the microphone; other apps keep their volume.
 - **Observability.** Every session writes a log with a per-turn latency timeline: recognition, first token,
   first audio, tool calls.
 - **Dialog recording.** The whole conversation as one WAV, with the real pauses.
@@ -177,7 +179,7 @@ Beseda's code is MIT, and no models are bundled: they download to your machine o
 ```bash
 uv sync
 uv run pytest
-uv tool install --editable .   # the beseda command picks up code changes
+uv tool install --editable .   # the beseda command picks up code changes; add --force after dependency changes
 uv run python scripts/demo.py  # re-record docs/demo-ru.gif and .mp4; --language en for the English one (needs brew install agg ffmpeg)
 git tag vX.Y.Z && git push origin vX.Y.Z   # release: CI tests and publishes to PyPI (the tag must match the version in pyproject.toml)
 ```
