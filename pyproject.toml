@@ -1,6 +1,6 @@
 [project]
 name = "beseda"
-version = "0.1.1"
+version = "0.2.0"
 description = "Voice conversations with your coding agent: a terminal assistant in Russian or English with local speech recognition and synthesis"
 readme = "README.md"
 license = "MIT"
