@@ -12,7 +12,9 @@ import resampy
 log = logging.getLogger("beseda.recording")
 
 OUTPUT_RATE = 22050
-# A chunk arriving later than this after the previous one starts a new segment (mic was off, assistant was silent).
+# Chunks arrive with a few milliseconds of delivery jitter; a gap below this is jitter, not a pause.
+JITTER_SECONDS = 0.05
+# A pause longer than this starts a new segment instead of storing its silence (mic off, assistant silent).
 GAP_SECONDS = 0.25
 # Audio kept before the first detected speech: VAD fires a bit after the first syllable.
 PRE_ROLL_SECONDS = 0.5
@@ -30,7 +32,11 @@ class Track:
         duration = len(chunk) / 2 / self.rate
         # Both sources deliver a chunk right after it was captured/played, so it started `duration` ago.
         start = now - duration
-        if self.segments and start - self.end < GAP_SECONDS:
+        gap = start - self.end
+        if self.segments and gap < GAP_SECONDS:
+            if gap > JITTER_SECONDS:  # a real short pause: keep it as silence so the tracks stay in time
+                self.segments[-1][1].append(bytes(round(gap * self.rate) * 2))
+                self.end += gap
             self.segments[-1][1].append(chunk)
             self.end += duration
         else:

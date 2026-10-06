@@ -6,7 +6,7 @@ from beseda.wake import is_hold, is_stop, strip_wake, wake_pattern
 RU = load("ru")
 EN = load("en")
 VIKA_RU = wake_pattern(RU.wake_word, RU.wake_endings)
-VIKA_EN = wake_pattern(EN.wake_word, EN.wake_endings)
+ALICE_EN = wake_pattern(EN.wake_word, EN.wake_endings)
 
 
 @pytest.mark.parametrize(
@@ -20,11 +20,13 @@ VIKA_EN = wake_pattern(EN.wake_word, EN.wake_endings)
         (VIKA_RU, "Привет, как дела?", None),
         (VIKA_RU, "Виктор пришёл", None),
         (VIKA_RU, "Ну вот, викарий", None),
-        (VIKA_EN, "Vika, what's the weather?", "what's the weather?"),
-        (VIKA_EN, "Hey Vika, hold on.", "hold on."),
-        (VIKA_EN, "Okay vika", ""),
-        (VIKA_EN, "What's the weather?", None),
-        (VIKA_EN, "Vikings are coming", None),
+        (ALICE_EN, "Alice, what's the weather?", "what's the weather?"),
+        (ALICE_EN, "Hey Alice, hold on.", "hold on."),
+        (ALICE_EN, "Okay alice", ""),
+        (ALICE_EN, "Alice's answer is wrong", "answer is wrong"),
+        (ALICE_EN, "Alice’s answer is wrong", "answer is wrong"),
+        (ALICE_EN, "What's the weather?", None),
+        (ALICE_EN, "Alicent is coming", None),
     ],
 )
 def test_strip_wake(pattern, text, expected):

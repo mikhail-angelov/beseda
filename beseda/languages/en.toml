@@ -1,7 +1,7 @@
 code = "en"
-wake_word = "vika"
-# Endings the wake word may take: "Vika", "Vika's".
-wake_endings = ["", "s"]
+wake_word = "alice"
+# Endings the wake word may take: "Alice", "Alice's" (straight or curly apostrophe).
+wake_endings = ["", "'s", "’s"]
 style_prompt = "Hello, how are you? Nice to meet you."
 voice_prompt = """
 You are a voice assistant: everything you write is spoken aloud by a speech synthesizer.

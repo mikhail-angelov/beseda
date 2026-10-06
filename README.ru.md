@@ -5,6 +5,11 @@
 
 [English version](README.md)
 
+![Демо Beseda: обращение, вопрос с выполнением команд, пауза, уточнение, стоп](docs/demo-ru.gif)
+
+▶ [Тот же разговор со звуком (MP4)](docs/demo-ru.mp4). Фразы пользователя произносит второй голос Silero вместо
+микрофона; распознавание, агент pi и ответы — настоящее приложение. Долгие ожидания в GIF сокращены.
+
 ```
 микрофон → Silero VAD + whisper.cpp (локально) → мозг: агент pi или DeepSeek → синтез: Silero (локально) → динамики
 ```
@@ -26,6 +31,7 @@
 ## Требования
 
 - macOS на Apple Silicon, Python 3.12+, [uv](https://docs.astral.sh/uv/), `brew install portaudio`
+- Для `--tts edge`: `brew install ffmpeg`
 - Для мозга по умолчанию: `npm install -g @earendil-works/pi-coding-agent` и ключ DeepSeek в настройках pi.
   Для `--brain deepseek`: переменная окружения `DEEPSEEK_API_KEY`.
 
@@ -46,7 +52,7 @@ beseda                      # по-русски
 beseda --language en        # по-английски
 ```
 
-В таблице русские фразы; у английского пакета свои («Vika, …», «hold on», «that's all»).
+В таблице русские фразы; у английского пакета свои («Alice, …», «hold on», «that's all»).
 
 | Вы говорите | Что происходит |
 |---|---|
@@ -164,6 +170,7 @@ grep -E 'ERROR|WARNING' ~/.beseda/logs/*.log   # инциденты
 uv sync
 uv run pytest
 uv tool install --editable .   # команда beseda подхватывает правки в коде
+uv run python scripts/demo.py  # перезаписать docs/demo-ru.gif и .mp4; --language en — английское демо (нужно brew install agg ffmpeg)
 ```
 
 ## Лицензия

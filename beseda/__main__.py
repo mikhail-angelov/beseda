@@ -1,6 +1,8 @@
 """Voice conversations with your coding agent: say the wake word, talk, listen to the answer."""
 
 import argparse
+import contextlib
+import io
 import logging
 import math
 import os
@@ -22,7 +24,7 @@ from rich.text import Text
 from RealtimeSTT import AudioToTextRecorder
 from RealtimeTTS import TextToAudioStream
 
-from beseda.brains import BRAINS
+from beseda.brains import BRAINS, Brain
 from beseda.language import Language, available
 from beseda.language import load as load_language
 from beseda.recording import DialogRecorder
@@ -37,6 +39,11 @@ RECORDINGS_DIR = Path.home() / "Downloads"
 CONFIG_PATH = Path.home() / ".beseda" / "config.toml"
 SESSION_START_SOUND = "/System/Library/Sounds/Tink.aiff"
 SESSION_END_SOUND = "/System/Library/Sounds/Bottle.aiff"
+
+
+def home_relative(path: Path | str) -> str:
+    """~/.beseda/logs/... instead of /Users/<name>/...: the terminal often ends up in screenshots."""
+    return str(path).replace(str(Path.home()), "~", 1)
 
 
 def setup_logging(debug: bool, keep_days: float) -> Path:
@@ -54,6 +61,11 @@ def setup_logging(debug: bool, keep_days: float) -> Path:
         logging.Formatter("%(asctime)s.%(msecs)03d %(levelname)-7s [%(threadName)s] %(name)s: %(message)s", "%H:%M:%S")
     )
     logging.getLogger().addHandler(handler)
+    # Native libraries (whisper.cpp and its VAD, in RealtimeSTT's worker processes) print to file descriptor 2
+    # and would scramble the terminal UI. Point fd 2, inherited by those processes, at the log; Python's own
+    # error output keeps going to the terminal.
+    sys.stderr = os.fdopen(os.dup(2), "w", buffering=1)
+    os.dup2(handler.stream.fileno(), 2)
     logging.getLogger().setLevel(logging.WARNING)
     log.setLevel(logging.DEBUG if debug else logging.INFO)
     threading.excepthook = lambda a: log.critical(
@@ -118,11 +130,14 @@ class App:
         # None: standby, waiting for the wake word; inf: answering; otherwise the follow-up deadline.
         self.session_until: float | None = None
         self.speech_started_at = 0.0
+        # Guards status and the session deadline: the session timer must not close a session whose next
+        # phrase has just started.
+        self.lock = threading.RLock()
 
         log.info("start args=%s", vars(args))
         with self.console.status(language.text("loading")):
             started = time.monotonic()
-            self.brain = BRAINS[args.brain](args.model, language.voice_prompt)
+            self.brain: Brain = BRAINS[args.brain](args.model, language.voice_prompt)
             engine = create_engine(args.tts, language, args.voice)
             self.dialog = DialogRecorder(Path(args.record), engine.rate) if args.record else None
             self.tts = TextToAudioStream(
@@ -143,7 +158,7 @@ class App:
             )
             self.recorder.set_microphone(False)
             log.info("components ready in %.1fs", time.monotonic() - started)
-        self.console.print(f"[dim]{escape(language.text('log', path=log_path))}[/dim]")
+        self.console.print(f"[dim]{escape(language.text('log', path=home_relative(log_path)))}[/dim]")
         if self.wake:
             self.console.print(language.text("intro", wake=self.wake_word.capitalize(), follow_up=f"{self.follow_up:g}"))
             self.active.set()  # wake word mode listens from the start, like a smart speaker
@@ -161,10 +176,11 @@ class App:
         self.live.update(self._render(), refresh=True)
 
     def set_status(self, status: str, detail: str = "") -> None:
-        if status != self.status:
-            log.debug("status %s -> %s %s", self.status, status, detail)
-        self.status, self.detail = status, detail
-        self.refresh()
+        with self.lock:
+            if status != self.status:
+                log.debug("status %s -> %s %s", self.status, status, detail)
+            self.status, self.detail = status, detail
+            self.refresh()
 
     def show(self, markup: str) -> None:
         self.live.console.print(markup)
@@ -179,11 +195,12 @@ class App:
     # --- recorder / tts callbacks -------------------------------------------
 
     def _on_speech_start(self) -> None:
-        self.speech_started_at = time.monotonic()
+        with self.lock:
+            self.speech_started_at = time.monotonic()
+            self.set_status("hearing")
         self.turn = Turn()
         if self.dialog:
             self.dialog.on_speech_start()
-        self.set_status("hearing")
 
     def _on_speech_end(self) -> None:
         if self.turn:
@@ -228,9 +245,11 @@ class App:
         self.recorder.set_microphone(True)
         log.info("listening session=%s", self.session_until is not None)
         self.in_listen = True
-        text = clean(self.recorder.text())
-        self.in_listen = False
-        self.recorder.set_microphone(False)  # the assistant must not hear itself
+        try:
+            text = clean(self.recorder.text())
+        finally:
+            self.in_listen = False
+            self.recorder.set_microphone(False)  # the assistant must not hear itself
         if self.stopping.is_set():
             return
         if not (self.active.is_set() and text):
@@ -281,29 +300,31 @@ class App:
         subprocess.run(["afplay", SESSION_START_SOUND])
 
     def end_session(self, reason: str) -> None:
-        if self.session_until is None:
-            return
-        log.info("session end reason=%s", reason)
-        self.session_until = None
+        with self.lock:
+            if self.session_until is None:
+                return
+            log.info("session end reason=%s", reason)
+            self.session_until = None
+            if self.status == "listening":
+                self.set_status("standby")
         self.show(f"[dim]{escape(self.lang.text('session_end', reason=self.lang.text(f'end_reason.{reason}')))}[/dim]")
         subprocess.Popen(["afplay", SESSION_END_SOUND])
-        if self.status == "listening":
-            self.set_status("standby")
 
     def session_timer(self) -> None:
         """Closes the follow-up window and shows the countdown while waiting for the next phrase."""
         while True:
             time.sleep(0.25)
-            until = self.session_until
-            if until is None or math.isinf(until) or self.status != "listening":
-                continue
-            remaining = until - time.monotonic()
-            if remaining <= 0:
-                self.end_session("timeout")
-            else:
-                seconds = math.ceil(remaining)
-                left = f"{seconds // 60}:{seconds % 60:02d}" if seconds > 60 else self.lang.text("seconds", n=seconds)
-                self.set_status("listening", self.lang.text("remaining", time=left))
+            with self.lock:  # speech can't start between the check and the action
+                until = self.session_until
+                if until is None or math.isinf(until) or self.status != "listening":
+                    continue
+                remaining = until - time.monotonic()
+                if remaining <= 0:
+                    self.end_session("timeout")
+                else:
+                    seconds = math.ceil(remaining)
+                    left = f"{seconds // 60}:{seconds % 60:02d}" if seconds > 60 else self.lang.text("seconds", n=seconds)
+                    self.set_status("listening", self.lang.text("remaining", time=left))
 
     def reply(self, text: str) -> None:
         turn = self.turn or Turn()
@@ -331,33 +352,40 @@ class App:
         # Drain the brain fully even after an interrupt so its next turn starts clean.
         answer = ""
         turn.mark("prompt_sent")
-        for kind, value in self.brain.ask(text):
-            turn.mark("brain_first_event")
-            if self.interrupted.is_set():
-                continue
-            if kind == "text":
-                turn.mark("first_text")
-                answer += value
-                self.partial = answer
-                to_speak.put(value)
-                if self.status != "speaking":
-                    self.set_status("thinking")
-                else:
-                    self.refresh()
-            elif kind == "tool":
-                turn.tools += 1
-                turn.mark("tool", value)
-                self.show(f"[yellow]🔧 {escape(value)}[/]")
-                self.set_status("tool", value[:60])
-            elif kind == "error":
-                turn.mark("error", value)
-                self.show(f"[red]{escape(self.lang.text('error', error=value))}[/]")
+        try:
+            for kind, value in self.brain.ask(text):
+                turn.mark("brain_first_event")
+                if self.interrupted.is_set():
+                    continue
+                if kind == "text":
+                    turn.mark("first_text")
+                    answer += value
+                    self.partial = answer
+                    to_speak.put(value)
+                    if self.status != "speaking":
+                        self.set_status("thinking")
+                    else:
+                        self.refresh()
+                elif kind == "tool":
+                    turn.tools += 1
+                    turn.mark("tool", value)
+                    self.show(f"[yellow]🔧 {escape(value)}[/]")
+                    self.set_status("tool", value[:60])
+                elif kind == "error":
+                    turn.mark("error", value)
+                    self.show(f"[red]{escape(self.lang.text('error', error=value))}[/]")
+        except BaseException:
+            self.tts.stop()  # don't finish a half-spoken answer after the brain failed
+            raise
+        finally:
+            # The player blocks on this queue: without the end marker it would hold the TTS forever.
+            to_speak.put(None)
+            player.join()
+            self.partial = ""
+            self.turn = None
         turn.mark("brain_done", f"chars={len(answer)}")
-        to_speak.put(None)
-        player.join()
         turn.mark("done")
 
-        self.partial = ""
         interrupted = self.interrupted.is_set()
         if answer.strip():
             suffix = f" [dim]{escape(self.lang.text('interrupted'))}[/]" if interrupted else ""
@@ -370,7 +398,6 @@ class App:
                 self.show(f"[red]{escape(self.lang.text('not_spoken'))}[/]")
         log.info("turn=%d summary %s interrupted=%s", turn.id, turn.summary(), interrupted)
         self.show(f"[dim]⏱ {turn.summary()}[/dim]")
-        self.turn = None
 
     def interrupt(self) -> None:
         log.info("interrupt requested status=%s", self.status)
@@ -417,11 +444,38 @@ class App:
             # RealtimeSTT stops its mic reader process only while the mic flag is on; otherwise the orphaned
             # reader keeps the microphone (and the macOS mic indicator) busy after exit.
             self.recorder.set_microphone(True)
-            self.recorder.shutdown()
+            with contextlib.redirect_stdout(io.StringIO()):  # RealtimeSTT prints its shutdown into the UI
+                self.recorder.shutdown()
             if self.dialog:
                 self.dialog.save()
                 if self.dialog.path.exists():
-                    self.console.print(escape(self.lang.text("recording_saved", path=self.dialog.path)))
+                    self.console.print(escape(self.lang.text("recording_saved", path=home_relative(self.dialog.path))))
+
+
+def read_config(parser: argparse.ArgumentParser) -> dict:
+    """config.toml values become defaults; set_defaults skips argparse's own checks, so they are repeated here."""
+    config = {key.replace("-", "_"): value for key, value in tomllib.loads(CONFIG_PATH.read_text()).items()}
+    actions = {action.dest: action for action in parser._actions}
+    for key, value in config.items():
+        action = actions.get(key)
+        name = key.replace("_", "-")
+        if action is None or key == "help":
+            parser.error(f"{CONFIG_PATH}: unknown key {name!r}")
+        if isinstance(action, argparse._StoreTrueAction):
+            expected = isinstance(value, bool)
+        elif action.type is float:
+            expected = isinstance(value, (int, float)) and not isinstance(value, bool)
+        elif action.nargs == "*":
+            expected = isinstance(value, list) and all(isinstance(item, str) for item in value)
+        elif key == "record":
+            expected = isinstance(value, (bool, str))
+        else:
+            expected = isinstance(value, str)
+        if not expected:
+            parser.error(f"{CONFIG_PATH}: wrong type for {name!r}: {value!r}")
+        if action.choices and value not in action.choices:
+            parser.error(f"{CONFIG_PATH}: {name} = {value!r}, expected one of {', '.join(map(str, action.choices))}")
+    return config
 
 
 def main() -> None:
@@ -446,11 +500,7 @@ def main() -> None:
     parser.add_argument("--log-days", type=float, default=14, help="days to keep logs (they hold the full dialog text)")
     parser.add_argument("--debug", action="store_true", help="verbose log: every pi event and status change")
     if CONFIG_PATH.exists():
-        config = {key.replace("-", "_"): value for key, value in tomllib.loads(CONFIG_PATH.read_text()).items()}
-        known = {action.dest for action in parser._actions}
-        if unknown := set(config) - known:
-            parser.error(f"{CONFIG_PATH}: unknown keys {sorted(unknown)}")
-        parser.set_defaults(**config)
+        parser.set_defaults(**read_config(parser))
     args = parser.parse_args()
     language = load_language(args.language)
     if args.wake_word is None:

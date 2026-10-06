@@ -8,7 +8,8 @@ def keys(node: dict, prefix: str = "") -> set[str]:
     return out
 
 
-def test_builtin_packs_have_the_same_ui_strings_and_voices():
+def test_builtin_packs_have_the_same_ui_strings_and_voices(tmp_path, monkeypatch):
+    monkeypatch.setattr(lang, "USER_DIR", tmp_path)  # only the built-in packs, whatever the user has installed
     packs = [lang.load(code) for code in lang.available()]
     assert {"ru", "en"} <= {pack.code for pack in packs}
     reference = packs[0]
@@ -21,7 +22,7 @@ def test_builtin_packs_have_the_same_ui_strings_and_voices():
 def test_user_pack_overrides_builtin(tmp_path, monkeypatch):
     monkeypatch.setattr(lang, "USER_DIR", tmp_path)
     builtin = (lang.files("beseda") / "languages" / "en.toml").read_text(encoding="utf-8")
-    (tmp_path / "en.toml").write_text(builtin.replace('wake_word = "vika"', 'wake_word = "jarvis"'), encoding="utf-8")
+    (tmp_path / "en.toml").write_text(builtin.replace('wake_word = "alice"', 'wake_word = "jarvis"'), encoding="utf-8")
     (tmp_path / "xx.toml").write_text(builtin, encoding="utf-8")
     assert lang.load("en").wake_word == "jarvis"
     assert "xx" in lang.available()

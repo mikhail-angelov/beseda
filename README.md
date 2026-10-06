@@ -1,9 +1,14 @@
 # Beseda
 
-**Voice conversations with your coding agent.** Say “Vika, …” and talk to an AI agent in Russian or English, right
+**Voice conversations with your coding agent.** Say “Alice, …” (in Russian, “Вика, …”) and talk to an AI agent in English or Russian, right
 from the terminal: speech recognition and synthesis run locally on your Mac, the agent works in the current folder.
 
 [Русская версия](README.ru.md)
+
+![Beseda demo: wake word, a question answered with shell commands, a hold phrase, a follow-up, stop](docs/demo-en.gif)
+
+▶ [The same conversation with sound (MP4)](docs/demo-en.mp4) ([Russian](docs/demo-ru.mp4)). The user's phrases are spoken by a second Silero voice
+instead of a microphone; recognition, the pi agent and the answers are the real app. Long waits in the GIF are shortened.
 
 ```
 microphone → Silero VAD + whisper.cpp (local) → brain: pi agent or DeepSeek → TTS: Silero (local) → speakers
@@ -26,6 +31,7 @@ microphone → Silero VAD + whisper.cpp (local) → brain: pi agent or DeepSeek 
 ## Requirements
 
 - macOS on Apple Silicon, Python 3.12+, [uv](https://docs.astral.sh/uv/), `brew install portaudio`
+- For `--tts edge`: `brew install ffmpeg`
 - For the default brain: `npm install -g @earendil-works/pi-coding-agent` with a DeepSeek key configured in pi.
   For `--brain deepseek`: the `DEEPSEEK_API_KEY` environment variable.
 
@@ -46,7 +52,7 @@ beseda                      # Russian
 beseda --language en        # English
 ```
 
-The table shows the Russian phrases; the English pack has its own (“Vika, …”, “hold on”, “that's all”).
+The table shows the Russian phrases; the English pack has its own (“Alice, …”, “hold on”, “that's all”).
 
 | You say | What happens |
 |---|---|
@@ -166,6 +172,7 @@ Beseda's code is MIT, and no models are bundled: they download to your machine o
 uv sync
 uv run pytest
 uv tool install --editable .   # the beseda command picks up code changes
+uv run python scripts/demo.py  # re-record docs/demo-ru.gif and .mp4; --language en for the English one (needs brew install agg ffmpeg)
 ```
 
 ## License

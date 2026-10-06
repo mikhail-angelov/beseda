@@ -10,22 +10,22 @@ import io
 import logging
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import time
-import urllib.request
+import warnings
 import wave
-from pathlib import Path
 from typing import Iterator
 
 import pyaudio
 from RealtimeTTS.engines.base_engine import BaseEngine
 
 from beseda.language import Language
+from beseda.models import cached
 
 log = logging.getLogger("beseda.tts")
 
-MODELS_DIR = Path.home() / ".beseda" / "models"
 
 
 def speakable(deltas: Iterator[str]) -> Iterator[str]:
@@ -114,14 +114,11 @@ class SileroEngine(PcmEngine):
         super().__init__(voice, language)
         import torch
 
-        url = language.silero_model
-        path = MODELS_DIR / Path(url).name
-        if not path.exists():
-            log.info("downloading %s", url)
-            MODELS_DIR.mkdir(parents=True, exist_ok=True)
-            urllib.request.urlretrieve(url, path)
+        path = cached(language.silero_model)
         torch.set_num_threads(4)
-        self.model = torch.package.PackageImporter(str(path)).load_pickle("tts_models", "model")
+        with warnings.catch_warnings():  # the model's own code has an invalid escape sequence
+            warnings.simplefilter("ignore", SyntaxWarning)
+            self.model = torch.package.PackageImporter(str(path)).load_pickle("tts_models", "model")
         self.render(language.greeting)  # warm-up: the first call is ~10x slower
 
     def render(self, text: str) -> bytes:
@@ -133,6 +130,11 @@ class EdgeEngine(PcmEngine):
     """Microsoft Edge "Read aloud" neural voices: very natural, but cloud, unofficial and experimental."""
 
     rate = 24000
+
+    def __init__(self, voice: str, language: Language):
+        super().__init__(voice, language)
+        if not shutil.which("ffmpeg"):  # pydub decodes the MP3 stream with it
+            raise SystemExit("--tts edge needs ffmpeg: brew install ffmpeg")
 
     def render(self, text: str) -> bytes:
         import edge_tts

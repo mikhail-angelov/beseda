@@ -14,7 +14,7 @@ import threading
 import time
 from typing import Iterator, Protocol
 
-from openai import OpenAI
+from openai import OpenAI, Timeout
 
 log = logging.getLogger("beseda.brain")
 
@@ -34,10 +34,12 @@ class OpenAICompatBrain:
         api_key = os.environ.get(api_key_env)
         if not api_key:
             raise SystemExit(f"{api_key_env} is not set")
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        # Finite network limits: a stalled connection must not hold the conversation forever.
+        self.client = OpenAI(api_key=api_key, base_url=base_url, timeout=Timeout(60.0, connect=10.0))
         self.model = model
         self.history = [{"role": "system", "content": prompt}]
         self._aborted = threading.Event()
+        self._response = None
         log.info("openai-compatible brain model=%s base_url=%s", model, base_url)
 
     def ask(self, text: str) -> Iterator[Event]:
@@ -46,26 +48,37 @@ class OpenAICompatBrain:
         answer, finish, usage = "", None, None
         started = time.monotonic()
         log.info("request model=%s history=%d", self.model, len(self.history))
-        with self.client.chat.completions.create(
-            model=self.model,
-            messages=self.history,
-            stream=True,
-            stream_options={"include_usage": True},
-        ) as response:
-            for chunk in response:
-                if self._aborted.is_set():
-                    log.info("aborted after %.2fs", time.monotonic() - started)
-                    break
-                usage = chunk.usage or usage
-                if not chunk.choices:
-                    continue
-                finish = chunk.choices[0].finish_reason or finish
-                delta = chunk.choices[0].delta.content
-                if delta:
-                    if not answer:
-                        log.info("first token after %.2fs", time.monotonic() - started)
-                    answer += delta
-                    yield "text", delta
+        try:
+            with self.client.chat.completions.create(
+                model=self.model,
+                messages=self.history,
+                stream=True,
+                stream_options={"include_usage": True},
+            ) as response:
+                self._response = response
+                if self._aborted.is_set():  # Esc while the request was being opened
+                    response.close()
+                for chunk in response:
+                    if self._aborted.is_set():
+                        break
+                    usage = chunk.usage or usage
+                    if not chunk.choices:
+                        continue
+                    finish = chunk.choices[0].finish_reason or finish
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        if not answer:
+                            log.info("first token after %.2fs", time.monotonic() - started)
+                        answer += delta
+                        yield "text", delta
+        except Exception:
+            if not self._aborted.is_set():
+                raise
+            # abort() closed the stream under a blocked read; that error is the expected way out.
+        finally:
+            self._response = None
+        if self._aborted.is_set():
+            log.info("aborted after %.2fs", time.monotonic() - started)
         log.info(
             "response done in %.2fs finish=%s chars=%d usage=%s",
             time.monotonic() - started, finish, len(answer), usage and usage.model_dump(exclude_none=True),
@@ -74,9 +87,11 @@ class OpenAICompatBrain:
 
     def abort(self) -> None:
         self._aborted.set()
+        if response := self._response:
+            response.close()  # unblocks a read waiting for the next chunk
 
     def close(self) -> None:
-        pass
+        self.client.close()
 
 
 class PiBrain:

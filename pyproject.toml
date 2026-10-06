@@ -23,6 +23,7 @@ dependencies = [
     "numpy>=2.5.3",
     "openai>=3.24.0",
     "pyaudio>=0.2.14",
+    "pydub>=0.25.1",
     "realtimestt[silero-onnx-cpu,whisper-cpp]>=1.1.2",
     "realtimetts>=0.8.10",
     "resampy>=0.4.3",

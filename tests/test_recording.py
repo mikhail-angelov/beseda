@@ -20,6 +20,16 @@ def test_track_joins_close_chunks_and_splits_on_gaps():
     assert len(track.segments[0][1]) == 2
 
 
+def test_track_keeps_short_pauses():
+    track = Track(16000)
+    chunk = tone(0.1, 16000)
+    track.add(chunk, 1.1)
+    track.add(chunk, 1.3)  # 0.1 s of silence between the chunks: below GAP_SECONDS, still a real pause
+    assert len(track.segments) == 1
+    assert round(track.end, 2) == 1.3
+    assert len(b"".join(track.segments[0][1])) == int(0.3 * 16000) * 2
+
+
 def test_save_starts_at_first_speech_and_keeps_pauses(tmp_path):
     recorder = DialogRecorder(tmp_path / "dialog.wav", voice_rate=22050)
     recorder.mic.add(tone(3.0, 16000), 3.0)  # background noise from startup on

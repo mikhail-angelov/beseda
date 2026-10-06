@@ -2,11 +2,10 @@
 
 import logging
 import re
-import urllib.request
 from pathlib import Path
 
 from beseda.language import Language
-from beseda.tts import MODELS_DIR
+from beseda.models import MODELS_DIR, cached
 
 log = logging.getLogger("beseda.stt")
 
@@ -29,13 +28,10 @@ MODELS = {
 
 def model_path(alias: str) -> str:
     name, url, elsewhere = MODELS[alias]
-    for directory in [MODELS_DIR, *elsewhere]:
+    for directory in elsewhere:
         if (directory / name).exists():
             return str(directory / name)
-    log.info("downloading %s", url)
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    urllib.request.urlretrieve(url, MODELS_DIR / name)
-    return str(MODELS_DIR / name)
+    return str(cached(url))
 
 
 def whisper_model(name: str) -> str:
