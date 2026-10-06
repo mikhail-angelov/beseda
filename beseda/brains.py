@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import queue
+import shlex
 import subprocess
 import threading
 import time
@@ -185,6 +186,173 @@ class PiBrain:
         self.proc.terminate()
 
 
+class CodexBrain:
+    """Codex through `codex app-server`: JSON-RPC over stdio with streamed text, one thread per Beseda session.
+
+    Commands run without approval prompts in the workspace-write sandbox: the agent can edit the current folder
+    but not the rest of the disk, and commands have no network."""
+
+    def __init__(self, model: str | None, prompt: str):
+        self.proc = subprocess.Popen(
+            ["codex", "app-server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        log.info("codex app-server started pid=%d cwd=%s", self.proc.pid, os.getcwd())
+        self.notifications: queue.Queue[dict | None] = queue.Queue()
+        self.responses: dict[int, queue.Queue[dict | None]] = {}
+        self.next_id = 0
+        self.send_lock = threading.Lock()
+        self.closing = False
+        self.turn_id: str | None = None
+        self.tool_started: dict[str, float] = {}
+        threading.Thread(target=self._read, name="codex-stdout", daemon=True).start()
+        threading.Thread(target=self._read_stderr, name="codex-stderr", daemon=True).start()
+
+        self._request("initialize", {"clientInfo": {"name": "beseda", "version": "0"}, "capabilities": None})
+        self._send({"method": "initialized"})
+        thread = self._request("thread/start", {
+            "model": model, "cwd": os.getcwd(), "approvalPolicy": "never", "sandbox": "workspace-write",
+            "developerInstructions": prompt, "ephemeral": True,
+        })
+        self.thread_id = thread["thread"]["id"]
+        log.info("codex thread=%s model=%s effort=%s", self.thread_id, thread.get("model"), thread.get("reasoningEffort"))
+
+    def _read(self) -> None:
+        for raw in self.proc.stdout:
+            try:
+                message = json.loads(raw)
+            except json.JSONDecodeError:
+                log.warning("codex non-JSON stdout: %r", raw[:500])
+                continue
+            if log.isEnabledFor(logging.DEBUG) and message.get("method") != "item/agentMessage/delta":
+                log.debug("codex -> %s", raw[:2000].decode(errors="replace").rstrip())
+            if "method" not in message:  # a response to one of our requests
+                if waiter := self.responses.pop(message.get("id"), None):
+                    waiter.put(message)
+            elif "id" in message:  # a request from the server; with approvalPolicy=never none are expected
+                log.warning("codex request %s refused", message["method"])
+                self._send({"id": message["id"], "error": {"code": -32601, "message": "not supported by beseda"}})
+            else:
+                self.notifications.put(message)
+        rc = self.proc.wait()
+        (log.info if self.closing else log.error)("codex exited rc=%s", rc)
+        self.notifications.put(None)
+        for waiter in list(self.responses.values()):
+            waiter.put(None)
+
+    def _read_stderr(self) -> None:
+        for raw in self.proc.stderr:
+            log.warning("codex stderr: %s", raw.decode(errors="replace").rstrip())
+
+    def _send(self, message: dict) -> None:
+        with self.send_lock:
+            self.proc.stdin.write(json.dumps(message, ensure_ascii=False).encode() + b"\n")
+            self.proc.stdin.flush()
+
+    def _request(self, method: str, params: dict, wait: bool = True) -> dict:
+        with self.send_lock:
+            self.next_id += 1
+            request_id = self.next_id
+        waiter: queue.Queue[dict | None] = queue.Queue()
+        if wait:
+            self.responses[request_id] = waiter
+        log.info("codex <- %s", method)
+        self._send({"id": request_id, "method": method, "params": params})
+        if not wait:
+            return {}
+        try:
+            response = waiter.get(timeout=60)
+        except queue.Empty:
+            raise RuntimeError(f"codex: no response to {method}") from None
+        if response is None:
+            raise RuntimeError("codex exited, see the log")
+        if "error" in response:
+            raise RuntimeError(f"codex {method}: {response['error'].get('message')}")
+        return response["result"]
+
+    def ask(self, text: str) -> Iterator[Event]:
+        while not self.notifications.empty():  # notifications between turns (MCP startup, rate limits)
+            if self.notifications.get() is None:
+                yield "error", "codex exited"
+                return
+        try:
+            turn = self._request("turn/start", {
+                "threadId": self.thread_id, "input": [{"type": "text", "text": text, "text_elements": []}],
+            })
+        except RuntimeError as error:
+            log.error("%s", error)
+            yield "error", str(error)
+            return
+        self.turn_id = turn["turn"]["id"]
+        spoken = ""
+        try:
+            while (message := self.notifications.get()) is not None:
+                method, params = message["method"], message.get("params") or {}
+                if method == "item/agentMessage/delta":
+                    spoken += params["delta"]
+                    yield "text", params["delta"]
+                elif method == "item/started":
+                    item = params["item"]
+                    if item["type"] == "agentMessage" and spoken and not spoken[-1].isspace():
+                        spoken += "\n"  # keeps the commentary and the answer as separate sentences
+                        yield "text", "\n"
+                    elif description := _describe_codex_item(item):
+                        self.tool_started[item["id"]] = time.monotonic()
+                        log.info("tool start %s", description)
+                        yield "tool", description
+                elif method == "item/completed":
+                    item = params["item"]
+                    if (started := self.tool_started.pop(item["id"], None)) is not None:
+                        log.info(
+                            "tool end %s in %.2fs status=%s exit=%s", item["type"], time.monotonic() - started,
+                            item.get("status"), item.get("exitCode"),
+                        )
+                elif method == "error":
+                    error = params["error"]
+                    log.warning("codex error will_retry=%s %s", params.get("willRetry"), error)
+                    if not params.get("willRetry"):
+                        yield "error", error.get("message", "error")
+                elif method == "thread/tokenUsage/updated":
+                    log.info("codex usage %s", params.get("tokenUsage", {}).get("last"))
+                elif method == "turn/completed":
+                    result = params["turn"]
+                    log.info("codex turn %s in %sms error=%s", result["status"], result.get("durationMs"), result.get("error"))
+                    if result["status"] == "failed":
+                        yield "error", (result.get("error") or {}).get("message", "turn failed")
+                    return
+            yield "error", "codex exited"
+        finally:
+            self.turn_id = None
+
+    def abort(self) -> None:
+        if turn_id := self.turn_id:
+            self._request("turn/interrupt", {"threadId": self.thread_id, "turnId": turn_id}, wait=False)
+
+    def close(self) -> None:
+        self.closing = True
+        self.proc.terminate()
+
+
+def _describe_codex_item(item: dict) -> str | None:
+    """A one-line description of an agent action, or None for items that aren't actions."""
+    kind = item["type"]
+    if kind == "commandExecution":
+        command = item["command"]
+        try:
+            parts = shlex.split(command)
+        except ValueError:
+            parts = []
+        if len(parts) == 3 and parts[1] in ("-c", "-lc"):  # codex wraps commands in the user's shell
+            command = parts[2]
+        return f"bash {command}"
+    if kind == "fileChange":
+        return "edit " + ", ".join(change["path"] for change in item["changes"])
+    if kind == "mcpToolCall":
+        return f"{item['server']}.{item['tool']}"
+    if kind == "webSearch":
+        return f"web search {item.get('query', '')}".strip()
+    return None
+
+
 def _describe_tool(name: str, args: dict) -> str:
     detail = args.get("command") or args.get("path") or args.get("pattern") or ""
     return f"{name} {detail}".strip()
@@ -196,4 +364,5 @@ BRAINS = {
         model or "deepseek-v4-flash", prompt, "https://api.deepseek.com", "DEEPSEEK_API_KEY"
     ),
     "pi": lambda model, prompt: PiBrain(model or "deepseek/deepseek-v4-flash", prompt),
+    "codex": lambda model, prompt: CodexBrain(model, prompt),  # model None: the default from ~/.codex/config.toml
 }

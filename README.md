@@ -13,7 +13,7 @@ from the terminal: speech recognition and synthesis run locally on your Mac, the
 instead of a microphone; recognition, the pi agent and the answers are the real app. Long waits in the GIF are shortened.
 
 ```
-microphone → Silero VAD + whisper.cpp (local) → brain: pi agent or DeepSeek → TTS: Silero (local) → speakers
+microphone → Silero VAD + whisper.cpp (local) → brain: pi agent, Codex or DeepSeek → TTS: Silero (local) → speakers
 ```
 
 > **Status:** alpha. macOS on Apple Silicon only. Russian (default) and English; more languages are a TOML file away.
@@ -25,7 +25,8 @@ microphone → Silero VAD + whisper.cpp (local) → brain: pi agent or DeepSeek 
 - **Local speech.** whisper.cpp on the Mac GPU (Metal) for recognition, Silero for synthesis: from the
   first word of the answer to sound in 0.1–0.25 s.
 - **Pluggable brains.** The [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) coding agent
-  (reads and edits files, runs commands) or a plain DeepSeek chat; adding Claude or Codex is one class.
+  (reads and edits files, runs commands), [Codex](https://github.com/openai/codex) or a plain DeepSeek chat;
+  adding another agent is one class.
 - **Observability.** Every session writes a log with a per-turn latency timeline: recognition, first token,
   first audio, tool calls.
 - **Dialog recording.** The whole conversation as one WAV, with the real pauses.
@@ -35,6 +36,8 @@ microphone → Silero VAD + whisper.cpp (local) → brain: pi agent or DeepSeek 
 - macOS on Apple Silicon, Python 3.12+, [uv](https://docs.astral.sh/uv/), `brew install portaudio`
 - For `--tts edge`: `brew install ffmpeg`
 - For the default brain: `npm install -g @earendil-works/pi-coding-agent` with a DeepSeek key configured in pi.
+  For `--brain codex`: the [Codex CLI](https://github.com/openai/codex) signed in with `codex login`; the model comes
+  from `~/.codex/config.toml` unless `--model` is set.
   For `--brain deepseek`: the `DEEPSEEK_API_KEY` environment variable.
 
 ## Install
@@ -77,7 +80,7 @@ Any option can be set in `~/.beseda/config.toml`; command-line flags win.
 
 ```toml
 language = "ru"           # ru | en | your own pack
-brain = "pi"              # pi | deepseek
+brain = "pi"              # pi | codex | deepseek
 model = "deepseek/deepseek-v4-flash"
 whisper = "small"         # small | turbo
 vocabulary = ["JavaScript", "DeepSeek"]
@@ -141,13 +144,14 @@ grep -E 'ERROR|WARNING' ~/.beseda/logs/*.log   # incidents
 ## Security
 
 With the default `pi` brain the agent has **full access**: it reads and writes files and runs shell commands in
-the current folder, by voice. Recognition makes mistakes. Run Beseda only in folders where that is acceptable,
+the current folder, by voice. With `codex` it runs commands without asking in Codex's workspace-write sandbox:
+it can change the current folder but not the rest of the disk, and commands have no network. Recognition makes mistakes. Run Beseda only in folders where that is acceptable,
 and keep them under version control.
 
 ## Privacy
 
 - Recognition, synthesis with `silero` or `say`, logs and recordings stay on your Mac.
-- What you say to the assistant (after the wake word) is sent to the LLM provider: DeepSeek by default.
+- What you say to the assistant (after the wake word) is sent to the LLM provider: DeepSeek by default, OpenAI with `codex`.
 - With `tts = "edge"` the answers are sent to Microsoft.
 - Logs contain the full text of your dialogs, including phrases that weren't addressed to the assistant;
   they are kept for `log-days` days.

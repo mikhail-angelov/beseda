@@ -482,7 +482,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="beseda", description=__doc__, epilog=f"Defaults for any option: {CONFIG_PATH}")
     parser.add_argument("--language", choices=available(), default="ru", help="language pack: what you speak and hear")
     parser.add_argument("--brain", choices=BRAINS, default="pi")
-    parser.add_argument("--model", help="model for the brain (default: DeepSeek V4 Flash)")
+    parser.add_argument("--model", help="model for the brain (pi, deepseek: DeepSeek V4 Flash; codex: from ~/.codex/config.toml)")
     parser.add_argument("--whisper", default="small", help="Whisper model: small (fast) or turbo (more accurate, ~2 s per phrase)")
     parser.add_argument("--vocabulary", nargs="*", default=[], metavar="TERM", help="terms Whisper should spell exactly like this")
     parser.add_argument("--tts", choices=TTS_ENGINES, default="silero", help="speech synthesis engine")
@@ -498,7 +498,7 @@ def main() -> None:
         help="record the whole dialog to a WAV with the real pauses (default: ~/Downloads/)",
     )
     parser.add_argument("--log-days", type=float, default=14, help="days to keep logs (they hold the full dialog text)")
-    parser.add_argument("--debug", action="store_true", help="verbose log: every pi event and status change")
+    parser.add_argument("--debug", action="store_true", help="verbose log: every agent event and status change")
     if CONFIG_PATH.exists():
         parser.set_defaults(**read_config(parser))
     args = parser.parse_args()
