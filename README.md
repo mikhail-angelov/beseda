@@ -3,11 +3,11 @@
 **Voice conversations with your coding agent.** Say “Alice, …” (in Russian, “Вика, …”) and talk to an AI agent in English or Russian, right
 from the terminal: speech recognition and synthesis run locally on your Mac, the agent works in the current folder.
 
-[Русская версия](README.ru.md)
+[Русская версия](https://github.com/mikhail-angelov/beseda/blob/main/README.ru.md)
 
-![Beseda demo: wake word, a question answered with shell commands, a hold phrase, a follow-up, stop](docs/demo-en.gif)
+![Beseda demo: wake word, a question answered with shell commands, a hold phrase, a follow-up, stop](https://raw.githubusercontent.com/mikhail-angelov/beseda/main/docs/demo-en.gif)
 
-▶ [The same conversation with sound (MP4)](docs/demo-en.mp4) ([Russian](docs/demo-ru.mp4)). The user's phrases are spoken by a second Silero voice
+▶ [The same conversation with sound (MP4)](https://github.com/mikhail-angelov/beseda/blob/main/docs/demo-en.mp4) ([Russian](https://github.com/mikhail-angelov/beseda/blob/main/docs/demo-ru.mp4)). The user's phrases are spoken by a second Silero voice
 instead of a microphone; recognition, the pi agent and the answers are the real app. Long waits in the GIF are shortened.
 
 ```
@@ -39,7 +39,7 @@ microphone → Silero VAD + whisper.cpp (local) → brain: pi agent or DeepSeek 
 
 ```bash
 brew install portaudio
-uv tool install git+https://github.com/mikhail-angelov/beseda
+uv tool install beseda
 ```
 
 Models download on first launch into `~/.beseda/models/` (Whisper small ~490 MB, Silero ~145 MB, VAD ~1 MB).
@@ -96,7 +96,7 @@ Everything that depends on the spoken language lives in a language pack, a TOML 
 style prompt, the voice prompt for the model, the wake word and its grammatical endings, stop and hold phrases,
 default TTS voices and the Silero model, and the terminal UI strings.
 
-Built-in packs: [`ru`](beseda/languages/ru.toml) (default) and [`en`](beseda/languages/en.toml). To change a pack
+Built-in packs: [`ru`](https://github.com/mikhail-angelov/beseda/blob/main/beseda/languages/ru.toml) (default) and [`en`](https://github.com/mikhail-angelov/beseda/blob/main/beseda/languages/en.toml). To change a pack
 or add a language, put a file into `~/.beseda/languages/`: `ru.toml` there overrides the built-in one, `de.toml`
 adds German (`beseda --language de`). Copy a built-in pack as a starting point; every key is required.
 
@@ -173,8 +173,9 @@ uv sync
 uv run pytest
 uv tool install --editable .   # the beseda command picks up code changes
 uv run python scripts/demo.py  # re-record docs/demo-ru.gif and .mp4; --language en for the English one (needs brew install agg ffmpeg)
+git tag v0.1.0 && git push origin v0.1.0   # release: CI tests and publishes to PyPI (the tag must match the version in pyproject.toml)
 ```
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/mikhail-angelov/beseda/blob/main/LICENSE)

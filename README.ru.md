@@ -39,7 +39,7 @@
 
 ```bash
 brew install portaudio
-uv tool install git+https://github.com/mikhail-angelov/beseda
+uv tool install beseda
 ```
 
 Модели скачиваются при первом запуске в `~/.beseda/models/` (Whisper small ~490 МБ, Silero ~145 МБ, VAD ~1 МБ).
@@ -171,6 +171,7 @@ uv sync
 uv run pytest
 uv tool install --editable .   # команда beseda подхватывает правки в коде
 uv run python scripts/demo.py  # перезаписать docs/demo-ru.gif и .mp4; --language en — английское демо (нужно brew install agg ffmpeg)
+git tag v0.1.0 && git push origin v0.1.0   # релиз: CI проверяет и публикует на PyPI (тег должен совпадать с version в pyproject.toml)
 ```
 
 ## Лицензия

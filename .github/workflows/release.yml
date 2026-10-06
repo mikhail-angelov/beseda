@@ -1,0 +1,22 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  pypi:
+    runs-on: macos-14
+    environment: pypi
+    permissions:
+      id-token: write  # PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag matches the package version
+        run: test "${GITHUB_REF_NAME#v}" = "$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)"
+      - run: brew install portaudio
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run pytest -q
+      - run: uv build
+      - run: uv publish
