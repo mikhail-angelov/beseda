@@ -18,14 +18,6 @@ from openai import OpenAI
 
 log = logging.getLogger("beseda.brain")
 
-VOICE_PROMPT = (
-    "Ты голосовой ассистент: всё, что ты пишешь, озвучивается синтезатором речи. "
-    "Отвечай по-русски, кратко и разговорно, как в живой беседе. "
-    "Не используй markdown, списки, таблицы, эмодзи и блоки кода. "
-    "Числа, даты и единицы измерения пиши словами, латинские названия — русскими буквами, как они произносятся. "
-    "Если нужен код или длинный результат — запиши его в файл, а голосом скажи итог."
-)
-
 Event = tuple[str, str]
 
 
@@ -38,13 +30,13 @@ class Brain(Protocol):
 class OpenAICompatBrain:
     """Plain chat over any OpenAI-compatible API (DeepSeek by default). Keeps history in memory."""
 
-    def __init__(self, model: str, base_url: str, api_key_env: str):
+    def __init__(self, model: str, prompt: str, base_url: str, api_key_env: str):
         api_key = os.environ.get(api_key_env)
         if not api_key:
-            raise SystemExit(f"Не задан {api_key_env}")
+            raise SystemExit(f"{api_key_env} is not set")
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
-        self.history = [{"role": "system", "content": VOICE_PROMPT}]
+        self.history = [{"role": "system", "content": prompt}]
         self._aborted = threading.Event()
         log.info("openai-compatible brain model=%s base_url=%s", model, base_url)
 
@@ -90,8 +82,8 @@ class OpenAICompatBrain:
 class PiBrain:
     """Coding agent `pi` in RPC mode: full tool access, session and history are managed by pi."""
 
-    def __init__(self, model: str):
-        cmd = ["pi", "--mode", "rpc", "--model", model, "--append-system-prompt", VOICE_PROMPT]
+    def __init__(self, model: str, prompt: str):
+        cmd = ["pi", "--mode", "rpc", "--model", model, "--append-system-prompt", prompt]
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         log.info("pi started pid=%d model=%s cwd=%s", self.proc.pid, model, os.getcwd())
         self.events: queue.Queue[dict | None] = queue.Queue()
@@ -168,7 +160,7 @@ class PiBrain:
                 log.warning("pi %s %s", kind, {k: v for k, v in event.items() if k not in ("type", "result")})
             elif kind == "agent_end":
                 return
-        yield "error", "pi завершился"
+        yield "error", "pi exited"
 
     def abort(self) -> None:
         self._send({"type": "abort"})
@@ -183,9 +175,10 @@ def _describe_tool(name: str, args: dict) -> str:
     return f"{name} {detail}".strip()
 
 
+# name -> factory(model or None, voice prompt from the language pack)
 BRAINS = {
-    "deepseek": lambda model: OpenAICompatBrain(
-        model or "deepseek-v4-flash", "https://api.deepseek.com", "DEEPSEEK_API_KEY"
+    "deepseek": lambda model, prompt: OpenAICompatBrain(
+        model or "deepseek-v4-flash", prompt, "https://api.deepseek.com", "DEEPSEEK_API_KEY"
     ),
-    "pi": lambda model: PiBrain(model or "deepseek/deepseek-v4-flash"),
+    "pi": lambda model, prompt: PiBrain(model or "deepseek/deepseek-v4-flash", prompt),
 }

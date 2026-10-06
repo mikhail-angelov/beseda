@@ -1,0 +1,61 @@
+code = "en"
+wake_word = "vika"
+# Endings the wake word may take: "Vika", "Vika's".
+wake_endings = ["", "s"]
+style_prompt = "Hello, how are you? Nice to meet you."
+voice_prompt = """
+You are a voice assistant: everything you write is spoken aloud by a speech synthesizer.
+Answer in English, briefly and conversationally, as in a live chat.
+Don't use markdown, lists, tables, emoji or code blocks.
+Write numbers, dates and units as words.
+If code or a long result is needed, write it to a file and say the outcome aloud.
+"""
+stop_phrases = [
+    "stop", "enough", "cancel", "that's all", "that's it", "thanks", "thank you", "thanks that's all",
+    "bye", "goodbye", "stop stop",
+]
+# A phrase made only of triggers and fillers asks to wait; it needs at least one trigger.
+hold_triggers = ["wait", "hold", "think", "sec", "second", "moment", "minute"]
+hold_fillers = ["on", "let", "me", "a", "one", "just", "please", "ok", "okay", "um", "uh", "hmm", "give", "i", "need", "to"]
+greeting = "Hello."
+sample_text = "Hi! I looked at the project: there are four files in the folder, and all the tests pass. Do you want me to tell you more about what I changed and why?"
+silero_model = "https://models.silero.ai/models/tts/en/v3_en.pt"
+
+[voices]
+silero = ["en_0", "en_1", "en_2", "en_3", "en_4"]
+edge = ["en-US-AriaNeural", "en-US-GuyNeural"]
+say = ["Daniel"]
+
+[ui]
+loading = "Loading…"
+log = "Log: {path}"
+intro = "Say “{wake}, …”. After an answer you can keep talking for {follow_up} s without the wake word; “stop” ends the conversation."
+hint = "Space — mic on/off · Esc — interrupt · q — quit"
+you = "You:"
+assistant = "Assistant:"
+ignored = "· not for me: {text}"
+error = "Error: {error}"
+error_see_log = "Error: {error} (details in the log)"
+interrupted = "(interrupted)"
+not_spoken = "The answer wasn't spoken (details in the log)"
+waiting = "(waiting {duration})"
+minutes = "{n:g} min"
+seconds = "{n:g} s"
+remaining = "{time} left"
+session_end = "— conversation ended: {reason} —"
+recording_saved = "Dialog recording: {path}"
+
+[ui.status]
+idle = "⏸  microphone off — Space: turn on"
+standby = "💤  waiting for the wake word"
+listening = "🎙  listening…"
+hearing = "🎙  hearing you…"
+transcribing = "✍️  transcribing…"
+thinking = "💭  thinking…"
+tool = "🔧  working…"
+speaking = "🔊  speaking…"
+
+[ui.end_reason]
+timeout = "silence"
+stop = "stop"
+pause = "microphone off"

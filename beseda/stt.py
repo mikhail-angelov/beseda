@@ -5,13 +5,12 @@ import re
 import urllib.request
 from pathlib import Path
 
+from beseda.language import Language
 from beseda.tts import MODELS_DIR
 
 log = logging.getLogger("beseda.stt")
 
 SUPPORT = Path.home() / "Library" / "Application Support"
-# A neutral sentence in the spoken language: brings punctuation, capitals and "ё" without biasing the words.
-STYLE_PROMPT = "Здравствуйте, как ваши дела? Приятно познакомиться."
 
 # Models other apps on this Mac already downloaded are reused instead of fetched again.
 MODELS = {
@@ -44,16 +43,18 @@ def whisper_model(name: str) -> str:
     return model_path(name) if name in MODELS else name
 
 
-def recorder_options(whisper: str, vocabulary: list[str]) -> dict:
+def recorder_options(whisper: str, vocabulary: list[str], language: Language) -> dict:
+    # The style prompt is a neutral sentence in the spoken language: it brings punctuation, capitals and "ё"
+    # without biasing the words; the vocabulary keeps the spelling of terms.
     terms = ", ".join(vocabulary) + "." if vocabulary else ""
     return {
         "transcription_engine": "whisper_cpp",  # Metal on Apple Silicon, ~2x faster than faster-whisper on CPU
         "model": whisper_model(whisper),
         "download_root": str(MODELS_DIR),  # Whisper models next to the others, not in pywhispercpp's cache
-        "language": "ru",
+        "language": language.code,
         "beam_size": 1,  # greedy, as in Vadic: same text as beam 5 on real phrases
         "normalize_audio": True,  # quiet microphones make Whisper drop words
-        "initial_prompt": f"{STYLE_PROMPT} {terms}".strip(),
+        "initial_prompt": f"{language.style_prompt} {terms}".strip(),
         "transcription_engine_options": {
             "model": {"redirect_whispercpp_logs_to": None},
             # Whisper's own VAD: without it a cough or a click becomes "Спасибо." or "Пока." (a stop phrase).

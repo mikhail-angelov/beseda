@@ -1,7 +1,7 @@
 # Beseda
 
-**Voice conversations with your coding agent.** Say «Вика, …» and talk to an AI agent in Russian, right from the
-terminal: speech recognition and synthesis run locally on your Mac, the agent works in the current folder.
+**Voice conversations with your coding agent.** Say “Vika, …” and talk to an AI agent in Russian or English, right
+from the terminal: speech recognition and synthesis run locally on your Mac, the agent works in the current folder.
 
 [Русская версия](README.ru.md)
 
@@ -9,7 +9,7 @@ terminal: speech recognition and synthesis run locally on your Mac, the agent wo
 microphone → Silero VAD + whisper.cpp (local) → brain: pi agent or DeepSeek → TTS: Silero (local) → speakers
 ```
 
-> **Status:** alpha. macOS on Apple Silicon only, Russian only.
+> **Status:** alpha. macOS on Apple Silicon only. Russian (default) and English; more languages are a TOML file away.
 
 ## Features
 
@@ -42,8 +42,11 @@ Models download on first launch into `~/.beseda/models/` (Whisper small ~490 MB,
 
 ```bash
 cd ~/some/project   # the agent works in the current folder
-beseda
+beseda                      # Russian
+beseda --language en        # English
 ```
+
+The table shows the Russian phrases; the English pack has its own (“Vika, …”, “hold on”, “that's all”).
 
 | You say | What happens |
 |---|---|
@@ -65,13 +68,14 @@ the wake word.
 Any option can be set in `~/.beseda/config.toml`; command-line flags win.
 
 ```toml
+language = "ru"           # ru | en | your own pack
 brain = "pi"              # pi | deepseek
 model = "deepseek/deepseek-v4-flash"
 whisper = "small"         # small | turbo
 vocabulary = ["JavaScript", "DeepSeek"]
 tts = "silero"            # silero | edge | say
 voice = "baya"
-wake-word = "вика"        # "" answers everything
+wake-word = "вика"        # default comes from the language pack; "" answers everything
 follow-up = 8
 hold = 120
 record = true             # or a file path
@@ -79,6 +83,16 @@ log-days = 14
 ```
 
 See `beseda --help` for the full list.
+
+## Languages
+
+Everything that depends on the spoken language lives in a language pack, a TOML file: Whisper's language and
+style prompt, the voice prompt for the model, the wake word and its grammatical endings, stop and hold phrases,
+default TTS voices and the Silero model, and the terminal UI strings.
+
+Built-in packs: [`ru`](beseda/languages/ru.toml) (default) and [`en`](beseda/languages/en.toml). To change a pack
+or add a language, put a file into `~/.beseda/languages/`: `ru.toml` there overrides the built-in one, `de.toml`
+adds German (`beseda --language de`). Copy a built-in pack as a starting point; every key is required.
 
 ## Speech recognition
 
@@ -95,15 +109,15 @@ Models other apps already downloaded (VoiceInk, Vadic) are reused.
 
 ## Speech synthesis
 
-| `tts` | Voices | Runs | Per sentence | CPU per second of speech | RAM |
-|---|---|---|---|---|---|
-| `silero` (default) | xenia, baya, kseniya, aidar, eugene | locally | 0.04 s | 16 ms | ~760 MB |
-| `say` | Milena | locally (macOS) | 0.6 s | 140 ms | ~40 MB |
-| `edge` (experimental) | ru-RU-SvetlanaNeural, ru-RU-DmitryNeural | Microsoft cloud | 1–2 s | 60 ms | ~55 MB |
+| `tts` | Russian voices | English voices | Runs | Per sentence (ru) | CPU per second of speech | RAM |
+|---|---|---|---|---|---|---|
+| `silero` (default) | xenia, baya, kseniya, aidar, eugene | en_0 … en_4 | locally | 0.04 s (en: ~0.35 s) | 16 ms | ~760 MB |
+| `say` | Milena | Daniel | locally (macOS) | 0.6 s | 140 ms | ~40 MB |
+| `edge` (experimental) | ru-RU-SvetlanaNeural, ru-RU-DmitryNeural | en-US-AriaNeural, en-US-GuyNeural | Microsoft cloud | 1–2 s | 60 ms | ~55 MB |
 
-Silero skips digits and Latin letters, so the voice prompt asks the model to write numbers and names in Russian
-words. Compare the voices by ear: `beseda-samples` writes the same phrase in every voice to
-`~/Downloads/beseda-tts-samples/`.
+Silero's Russian model skips digits and Latin letters, so the Russian voice prompt asks the model to write numbers
+and names in Russian words. Compare the voices by ear: `beseda-samples [--language en]` writes the same phrase in
+every voice to `~/Downloads/beseda-tts-samples/`.
 
 ## Logs and recordings
 
@@ -142,7 +156,9 @@ Beseda's code is MIT, and no models are bundled: they download to your machine o
 
 - A brain (`beseda/brains.py`) yields `("text", …)`, `("tool", …)`, `("error", …)` events and supports `abort()`;
   register it in `BRAINS`.
-- A TTS engine (`beseda/tts.py`) subclasses `PcmEngine` with `render(text) -> PCM`; register it in `TTS_ENGINES`.
+- A TTS engine (`beseda/tts.py`) subclasses `PcmEngine` with `render(text) -> PCM`; register it in `TTS_ENGINES`
+  and list its voices under `[voices]` in each language pack.
+- A language is a TOML file, see [Languages](#languages).
 
 ## Development
 

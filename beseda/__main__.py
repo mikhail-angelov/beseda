@@ -1,4 +1,4 @@
-"""Voice chat in the terminal: Space starts/stops the conversation, Esc interrupts, q quits."""
+"""Voice conversations with your coding agent: say the wake word, talk, listen to the answer."""
 
 import argparse
 import logging
@@ -23,6 +23,8 @@ from RealtimeSTT import AudioToTextRecorder
 from RealtimeTTS import TextToAudioStream
 
 from beseda.brains import BRAINS
+from beseda.language import Language, available
+from beseda.language import load as load_language
 from beseda.recording import DialogRecorder
 from beseda.stt import clean, recorder_options
 from beseda.tts import TTS_ENGINES, create_engine, speakable
@@ -30,23 +32,11 @@ from beseda.wake import is_hold, is_stop, strip_wake, wake_pattern
 
 log = logging.getLogger("beseda")
 
-STATUS = {
-    "idle": "⏸  микрофон выключен — Пробел: включить",
-    "standby": "💤  жду обращения",
-    "listening": "🎙  слушаю…",
-    "hearing": "🎙  слышу вас…",
-    "transcribing": "✍️  распознаю…",
-    "thinking": "💭  думаю…",
-    "tool": "🔧  выполняю…",
-    "speaking": "🔊  говорю…",
-}
-HINT = "[dim]Пробел — микрофон вкл/выкл · Esc — перебить · q — выход[/dim]"
 LOG_DIR = Path.home() / ".beseda" / "logs"
 RECORDINGS_DIR = Path.home() / "Downloads"
 CONFIG_PATH = Path.home() / ".beseda" / "config.toml"
 SESSION_START_SOUND = "/System/Library/Sounds/Tink.aiff"
 SESSION_END_SOUND = "/System/Library/Sounds/Bottle.aiff"
-SESSION_END_REASONS = {"timeout": "тишина", "stop": "стоп", "pause": "микрофон выключен"}
 
 
 def setup_logging(debug: bool, keep_days: float) -> Path:
@@ -108,7 +98,8 @@ class Turn:
 
 
 class App:
-    def __init__(self, args: argparse.Namespace, log_path: Path):
+    def __init__(self, args: argparse.Namespace, language: Language, log_path: Path):
+        self.lang = language
         self.console = Console()
         self.status = "idle"
         self.detail = ""
@@ -120,7 +111,7 @@ class App:
         self.in_listen = False
         self.turn: Turn | None = None
         self.spoken_chars = 0
-        self.wake = wake_pattern(args.wake_word) if args.wake_word else None
+        self.wake = wake_pattern(args.wake_word, language.wake_endings) if args.wake_word else None
         self.wake_word = args.wake_word
         self.follow_up = args.follow_up
         self.hold = args.hold
@@ -129,19 +120,19 @@ class App:
         self.speech_started_at = 0.0
 
         log.info("start args=%s", vars(args))
-        with self.console.status("Загрузка…"):
+        with self.console.status(language.text("loading")):
             started = time.monotonic()
-            self.brain = BRAINS[args.brain](args.model)
-            engine = create_engine(args.tts, args.voice)
+            self.brain = BRAINS[args.brain](args.model, language.voice_prompt)
+            engine = create_engine(args.tts, language, args.voice)
             self.dialog = DialogRecorder(Path(args.record), engine.rate) if args.record else None
             self.tts = TextToAudioStream(
                 engine,
-                language="ru",
+                language=language.code,
                 on_audio_stream_start=self._on_audio_start,
                 on_audio_stream_stop=self._on_audio_stop,
             )
             self.recorder = AudioToTextRecorder(
-                **recorder_options(args.whisper, args.vocabulary),
+                **recorder_options(args.whisper, args.vocabulary, language),
                 spinner=False,
                 level=logging.ERROR,
                 no_log_file=True,
@@ -152,22 +143,19 @@ class App:
             )
             self.recorder.set_microphone(False)
             log.info("components ready in %.1fs", time.monotonic() - started)
-        self.console.print(f"[dim]Лог: {log_path}[/dim]")
+        self.console.print(f"[dim]{escape(language.text('log', path=log_path))}[/dim]")
         if self.wake:
-            self.console.print(
-                f"Скажите «{self.wake_word.capitalize()}, …». После ответа {self.follow_up:g} с можно продолжать "
-                "без обращения, «стоп» завершает разговор."
-            )
+            self.console.print(language.text("intro", wake=self.wake_word.capitalize(), follow_up=f"{self.follow_up:g}"))
             self.active.set()  # wake word mode listens from the start, like a smart speaker
 
     # --- UI -----------------------------------------------------------------
 
     def _render(self) -> Group:
-        status = Text(STATUS[self.status], style="bold")
+        status = Text(self.lang.text(f"status.{self.status}"), style="bold")
         if self.detail:
             status.append(f"  {self.detail}", style="dim")
         parts = [Text(self.partial[-400:], style="cyan")] if self.partial else []
-        return Group(*parts, status, Text.from_markup(HINT))
+        return Group(*parts, status, Text(self.lang.text("hint"), style="dim"))
 
     def refresh(self) -> None:
         self.live.update(self._render(), refresh=True)
@@ -180,6 +168,13 @@ class App:
 
     def show(self, markup: str) -> None:
         self.live.console.print(markup)
+
+    def show_user(self, text: str, note: str = "") -> None:
+        suffix = f" [dim]{escape(note)}[/dim]" if note else ""
+        self.show(f"[bold green]{escape(self.lang.text('you'))}[/] {escape(text)}{suffix}")
+
+    def duration(self, seconds: float) -> str:
+        return self.lang.text("minutes", n=seconds / 60) if seconds >= 60 else self.lang.text("seconds", n=seconds)
 
     # --- recorder / tts callbacks -------------------------------------------
 
@@ -222,7 +217,7 @@ class App:
                 self.listen_and_reply()
             except Exception as error:
                 log.exception("turn failed")
-                self.show(f"[red]Ошибка: {escape(str(error))} (подробности в логе)[/]")
+                self.show(f"[red]{escape(self.lang.text('error_see_log', error=error))}[/]")
 
     def idle_status(self) -> str:
         return "standby" if self.wake and self.session_until is None else "listening"
@@ -253,25 +248,24 @@ class App:
             if self.session_until is None:
                 if addressed is None:
                     log.info("ignored (no wake word): %r", text)
-                    self.show(f"[dim]· не мне: {escape(text[:80])}[/dim]")
+                    self.show(f"[dim]{escape(self.lang.text('ignored', text=text[:80]))}[/dim]")
                     self.turn = None
                     return
                 self.start_session()
             if addressed is not None:
                 text = addressed
-            if not text:  # just "Вика": wait for the request itself
+            if not text:  # just the wake word: wait for the request itself
                 self.session_until = time.monotonic() + self.follow_up
                 self.turn = None
                 return
-            if is_stop(text):
-                self.show(f"[bold green]Вы:[/] {escape(text)}")
+            if is_stop(text, self.lang):
+                self.show_user(text)
                 self.end_session("stop")
                 self.turn = None
                 return
-            if is_hold(text):
+            if is_hold(text, self.lang):
                 log.info("hold for %gs: %r", self.hold, text)
-                wait = f"{self.hold / 60:g} мин" if self.hold >= 60 else f"{self.hold:g} с"
-                self.show(f"[bold green]Вы:[/] {escape(text)} [dim](жду {wait})[/dim]")
+                self.show_user(text, self.lang.text("waiting", duration=self.duration(self.hold)))
                 self.session_until = time.monotonic() + self.hold
                 self.turn = None
                 return
@@ -291,7 +285,7 @@ class App:
             return
         log.info("session end reason=%s", reason)
         self.session_until = None
-        self.show(f"[dim]— разговор завершён: {SESSION_END_REASONS[reason]} —[/dim]")
+        self.show(f"[dim]{escape(self.lang.text('session_end', reason=self.lang.text(f'end_reason.{reason}')))}[/dim]")
         subprocess.Popen(["afplay", SESSION_END_SOUND])
         if self.status == "listening":
             self.set_status("standby")
@@ -308,12 +302,13 @@ class App:
                 self.end_session("timeout")
             else:
                 seconds = math.ceil(remaining)
-                self.set_status("listening", f"ещё {seconds // 60}:{seconds % 60:02d}" if seconds > 60 else f"ещё {seconds} с")
+                left = f"{seconds // 60}:{seconds % 60:02d}" if seconds > 60 else self.lang.text("seconds", n=seconds)
+                self.set_status("listening", self.lang.text("remaining", time=left))
 
     def reply(self, text: str) -> None:
         turn = self.turn or Turn()
         self.turn = turn
-        self.show(f"[bold green]Вы:[/] {escape(text)}")
+        self.show_user(text)
         self.interrupted.clear()
         self.spoken_chars = 0
         self.set_status("thinking")
@@ -324,7 +319,7 @@ class App:
             target=self.tts.play,
             name="tts-play",
             kwargs={
-                "language": "ru",
+                "language": self.lang.code,
                 "minimum_sentence_length": 15,
                 "before_sentence_synthesized": self._before_sentence,
                 "on_sentence_synthesized": self._after_sentence,
@@ -356,7 +351,7 @@ class App:
                 self.set_status("tool", value[:60])
             elif kind == "error":
                 turn.mark("error", value)
-                self.show(f"[red]Ошибка: {escape(value)}[/]")
+                self.show(f"[red]{escape(self.lang.text('error', error=value))}[/]")
         turn.mark("brain_done", f"chars={len(answer)}")
         to_speak.put(None)
         player.join()
@@ -365,14 +360,14 @@ class App:
         self.partial = ""
         interrupted = self.interrupted.is_set()
         if answer.strip():
-            suffix = " [dim](прервано)[/]" if interrupted else ""
-            self.show(f"[bold cyan]Ассистент:[/] {escape(answer.strip())}{suffix}")
+            suffix = f" [dim]{escape(self.lang.text('interrupted'))}[/]" if interrupted else ""
+            self.show(f"[bold cyan]{escape(self.lang.text('assistant'))}[/] {escape(answer.strip())}{suffix}")
             if not interrupted and "audio_start" not in turn.marks:
                 log.error(
                     "turn=%d answer has %d chars, %d sent to TTS, but no audio was played",
                     turn.id, len(answer), self.spoken_chars,
                 )
-                self.show("[red]Ответ не озвучен (подробности в логе)[/]")
+                self.show(f"[red]{escape(self.lang.text('not_spoken'))}[/]")
         log.info("turn=%d summary %s interrupted=%s", turn.id, turn.summary(), interrupted)
         self.show(f"[dim]⏱ {turn.summary()}[/dim]")
         self.turn = None
@@ -426,39 +421,43 @@ class App:
             if self.dialog:
                 self.dialog.save()
                 if self.dialog.path.exists():
-                    self.console.print(f"Запись диалога: {self.dialog.path}")
+                    self.console.print(escape(self.lang.text("recording_saved", path=self.dialog.path)))
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="beseda", description=__doc__, epilog=f"Настройки по умолчанию: {CONFIG_PATH}")
+    parser = argparse.ArgumentParser(prog="beseda", description=__doc__, epilog=f"Defaults for any option: {CONFIG_PATH}")
+    parser.add_argument("--language", choices=available(), default="ru", help="language pack: what you speak and hear")
     parser.add_argument("--brain", choices=BRAINS, default="pi")
-    parser.add_argument("--model", help="модель для выбранного brain (по умолчанию DeepSeek V4 Flash)")
-    parser.add_argument("--whisper", default="small", help="модель Whisper: small (быстро) или turbo (точнее, ~2 с на фразу)")
-    parser.add_argument("--vocabulary", nargs="*", default=[], metavar="TERM", help="термины, которые Whisper должен писать именно так")
-    parser.add_argument("--tts", choices=TTS_ENGINES, default="silero", help="движок синтеза речи")
-    parser.add_argument("--voice", help="голос движка (по умолчанию первый из списка в beseda/tts.py)")
-    parser.add_argument("--wake-word", default="вика", help="слово активации; пустая строка — отвечать на всё")
-    parser.add_argument("--follow-up", type=float, default=8, help="сколько секунд после ответа можно продолжать без слова активации")
-    parser.add_argument("--hold", type=float, default=120, help="на сколько секунд «подожди», «дай подумать» продлевают ожидание")
+    parser.add_argument("--model", help="model for the brain (default: DeepSeek V4 Flash)")
+    parser.add_argument("--whisper", default="small", help="Whisper model: small (fast) or turbo (more accurate, ~2 s per phrase)")
+    parser.add_argument("--vocabulary", nargs="*", default=[], metavar="TERM", help="terms Whisper should spell exactly like this")
+    parser.add_argument("--tts", choices=TTS_ENGINES, default="silero", help="speech synthesis engine")
+    parser.add_argument("--voice", help="TTS voice (default: the first one in the language pack)")
+    parser.add_argument("--wake-word", help='wake word (default: from the language pack); "" answers everything')
+    parser.add_argument("--follow-up", type=float, default=8, help="seconds after an answer to keep talking without the wake word")
+    parser.add_argument("--hold", type=float, default=120, help="seconds a hold phrase («подожди», “hold on”) extends the wait")
     parser.add_argument(
         "--record",
         nargs="?",
         const=True,
         metavar="PATH",
-        help="записать весь диалог в WAV с реальными паузами (по умолчанию в ~/Downloads/)",
+        help="record the whole dialog to a WAV with the real pauses (default: ~/Downloads/)",
     )
-    parser.add_argument("--log-days", type=float, default=14, help="сколько дней хранить логи (в них весь текст диалогов)")
-    parser.add_argument("--debug", action="store_true", help="подробный лог: все события pi и смены статуса")
+    parser.add_argument("--log-days", type=float, default=14, help="days to keep logs (they hold the full dialog text)")
+    parser.add_argument("--debug", action="store_true", help="verbose log: every pi event and status change")
     if CONFIG_PATH.exists():
         config = {key.replace("-", "_"): value for key, value in tomllib.loads(CONFIG_PATH.read_text()).items()}
         known = {action.dest for action in parser._actions}
         if unknown := set(config) - known:
-            parser.error(f"{CONFIG_PATH}: неизвестные ключи {sorted(unknown)}")
+            parser.error(f"{CONFIG_PATH}: unknown keys {sorted(unknown)}")
         parser.set_defaults(**config)
     args = parser.parse_args()
+    language = load_language(args.language)
+    if args.wake_word is None:
+        args.wake_word = language.wake_word
     if args.record is True:
         args.record = str(RECORDINGS_DIR / f"beseda-{datetime.now():%Y%m%d-%H%M%S}.wav")
-    App(args, setup_logging(args.debug, args.log_days)).run()
+    App(args, language, setup_logging(args.debug, args.log_days)).run()
 
 
 if __name__ == "__main__":
