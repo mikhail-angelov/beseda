@@ -173,7 +173,7 @@ uv sync
 uv run pytest
 uv tool install --editable .   # команда beseda подхватывает правки в коде
 uv run python scripts/demo.py  # перезаписать docs/demo-ru.gif и .mp4; --language en — английское демо (нужно brew install agg ffmpeg)
-git tag v0.1.0 && git push origin v0.1.0   # релиз: CI проверяет и публикует на PyPI (тег должен совпадать с version в pyproject.toml)
+git tag vX.Y.Z && git push origin vX.Y.Z   # релиз: CI проверяет и публикует на PyPI (тег должен совпадать с version в pyproject.toml)
 ```
 
 ## Лицензия

@@ -175,7 +175,7 @@ uv sync
 uv run pytest
 uv tool install --editable .   # the beseda command picks up code changes
 uv run python scripts/demo.py  # re-record docs/demo-ru.gif and .mp4; --language en for the English one (needs brew install agg ffmpeg)
-git tag v0.1.0 && git push origin v0.1.0   # release: CI tests and publishes to PyPI (the tag must match the version in pyproject.toml)
+git tag vX.Y.Z && git push origin vX.Y.Z   # release: CI tests and publishes to PyPI (the tag must match the version in pyproject.toml)
 ```
 
 ## License
