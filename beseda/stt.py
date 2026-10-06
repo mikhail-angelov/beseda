@@ -1,0 +1,67 @@
+"""Speech recognition settings, carried over from Vadic where they were measured on real dictations."""
+
+import logging
+import re
+import urllib.request
+from pathlib import Path
+
+from beseda.tts import MODELS_DIR
+
+log = logging.getLogger("beseda.stt")
+
+SUPPORT = Path.home() / "Library" / "Application Support"
+# A neutral sentence in the spoken language: brings punctuation, capitals and "ё" without biasing the words.
+STYLE_PROMPT = "Здравствуйте, как ваши дела? Приятно познакомиться."
+
+# Models other apps on this Mac already downloaded are reused instead of fetched again.
+MODELS = {
+    "turbo": (
+        "ggml-large-v3-turbo-q5_0.bin",
+        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
+        [SUPPORT / "com.prakashjoshipax.VoiceInk" / "WhisperModels"],
+    ),
+    "vad": (
+        "ggml-silero-v5.1.2.bin",
+        "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin",
+        [SUPPORT / "Vadic" / "Models"],
+    ),
+}
+
+
+def model_path(alias: str) -> str:
+    name, url, elsewhere = MODELS[alias]
+    for directory in [MODELS_DIR, *elsewhere]:
+        if (directory / name).exists():
+            return str(directory / name)
+    log.info("downloading %s", url)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    urllib.request.urlretrieve(url, MODELS_DIR / name)
+    return str(MODELS_DIR / name)
+
+
+def whisper_model(name: str) -> str:
+    """`turbo` is large-v3-turbo-q5_0: far more accurate, ~4x slower than `small` on M1."""
+    return model_path(name) if name in MODELS else name
+
+
+def recorder_options(whisper: str, vocabulary: list[str]) -> dict:
+    terms = ", ".join(vocabulary) + "." if vocabulary else ""
+    return {
+        "transcription_engine": "whisper_cpp",  # Metal on Apple Silicon, ~2x faster than faster-whisper on CPU
+        "model": whisper_model(whisper),
+        "download_root": str(MODELS_DIR),  # Whisper models next to the others, not in pywhispercpp's cache
+        "language": "ru",
+        "beam_size": 1,  # greedy, as in Vadic: same text as beam 5 on real phrases
+        "normalize_audio": True,  # quiet microphones make Whisper drop words
+        "initial_prompt": f"{STYLE_PROMPT} {terms}".strip(),
+        "transcription_engine_options": {
+            "model": {"redirect_whispercpp_logs_to": None},
+            # Whisper's own VAD: without it a cough or a click becomes "Спасибо." or "Пока." (a stop phrase).
+            "transcribe": {"temperature": 0.0, "vad": True, "vad_model_path": model_path("vad")},
+        },
+    }
+
+
+def clean(text: str) -> str:
+    """Drop Whisper's non-speech annotations: "[музыка]", "*звук*", "[BLANK_AUDIO]"."""
+    return re.sub(r"\s+", " ", re.sub(r"\[[^\]]*\]|\*[^*]*\*", "", text)).strip()

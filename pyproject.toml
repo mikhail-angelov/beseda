@@ -1,13 +1,51 @@
 [project]
-name = "pogo"
+name = "beseda"
 version = "0.1.0"
-description = "Голосовой ассистент в терминале: локальные STT/TTS + DeepSeek или агент pi"
+description = "Voice conversations with your coding agent: a Russian-speaking terminal assistant with local speech recognition and synthesis"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Mikhail Angelov", email = "mikhail.angelov@gmail.com" }]
+keywords = ["voice-assistant", "speech-recognition", "text-to-speech", "whisper", "coding-agent", "russian"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Environment :: MacOS X",
+    "Intended Audience :: Developers",
+    "Natural Language :: Russian",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
 requires-python = ">=3.12"
 dependencies = [
     "edge-tts>=7.2.8",
+    "numpy>=2.5.3",
     "openai>=3.24.0",
-    "piper-tts>=1.8.0",
+    "pyaudio>=0.2.14",
     "realtimestt[silero-onnx-cpu,whisper-cpp]>=1.1.2",
     "realtimetts>=0.8.10",
+    "resampy>=0.4.3",
     "rich>=15.0.0",
+    "torch>=2.14.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/mikhail-angelov/beseda"
+Issues = "https://github.com/mikhail-angelov/beseda/issues"
+
+[project.scripts]
+beseda = "beseda.__main__:main"
+beseda-samples = "beseda.samples:main"
+
+[build-system]
+requires = ["uv_build>=0.9,<0.10"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
 ]

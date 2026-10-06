@@ -1,67 +1,157 @@
-# pogo
+# Beseda
 
-Голосовой ассистент в терминале. Речь распознаётся локально (whisper.cpp), «мозг» и синтез речи подключаемые.
+**Voice conversations with your coding agent.** Say «Вика, …» and talk to an AI agent in Russian, right from the
+terminal: speech recognition and synthesis run locally on your Mac, the agent works in the current folder.
+
+[Русская версия](README.ru.md)
 
 ```
-микрофон → RealtimeSTT (Silero VAD + whisper.cpp) → brain → RealtimeTTS (Silero / Edge / Piper / say)
+microphone → Silero VAD + whisper.cpp (local) → brain: pi agent or DeepSeek → TTS: Silero (local) → speakers
 ```
 
-## Запуск
+> **Status:** alpha. macOS on Apple Silicon only, Russian only.
+
+## Features
+
+- **Wake word, like a smart speaker.** Only phrases addressed to «Вика» reach the model; after an answer you can
+  keep talking without the wake word, «стоп» ends the conversation, «подожди» gives you time to think.
+- **Local speech.** whisper.cpp on the Mac GPU (Metal) for recognition, Silero for synthesis: from the
+  first word of the answer to sound in 0.1–0.25 s.
+- **Pluggable brains.** The [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) coding agent
+  (reads and edits files, runs commands) or a plain DeepSeek chat; adding Claude or Codex is one class.
+- **Observability.** Every session writes a log with a per-turn latency timeline: recognition, first token,
+  first audio, tool calls.
+- **Dialog recording.** The whole conversation as one WAV, with the real pauses.
+
+## Requirements
+
+- macOS on Apple Silicon, Python 3.12+, [uv](https://docs.astral.sh/uv/), `brew install portaudio`
+- For the default brain: `npm install -g @earendil-works/pi-coding-agent` with a DeepSeek key configured in pi.
+  For `--brain deepseek`: the `DEEPSEEK_API_KEY` environment variable.
+
+## Install
 
 ```bash
 brew install portaudio
+uv tool install git+https://github.com/mikhail-angelov/beseda
+```
+
+Models download on first launch into `~/.beseda/models/` (Whisper small ~490 MB, Silero ~145 MB, VAD ~1 MB).
+
+## Use
+
+```bash
+cd ~/some/project   # the agent works in the current folder
+beseda
+```
+
+| You say | What happens |
+|---|---|
+| «Вика, какая погода?» | Conversation starts (Tink sound); «какая погода?» goes to the model |
+| «Вика» | A beep, then it waits for the request |
+| anything, within `--follow-up` s after an answer (8 s) | Goes to the model without the wake word; the status line counts down |
+| «Подожди», «дай подумать», «секунду» | Not sent to the model; the wait extends to `--hold` s (2 min) |
+| «Стоп», «хватит», «спасибо, всё», or silence | Conversation ends (Bottle sound); the wake word is needed again |
+| anything else without the wake word | Ignored, shown dimmed |
+
+Keys: **Space** turns the microphone on/off, **Esc** interrupts the answer, **q** quits.
+
+The microphone is off while the assistant speaks, so it never hears itself; interrupting by voice isn't
+supported yet. The macOS microphone indicator stays on while Beseda runs: the stream must stay open to hear
+the wake word.
+
+## Configuration
+
+Any option can be set in `~/.beseda/config.toml`; command-line flags win.
+
+```toml
+brain = "pi"              # pi | deepseek
+model = "deepseek/deepseek-v4-flash"
+whisper = "small"         # small | turbo
+vocabulary = ["JavaScript", "DeepSeek"]
+tts = "silero"            # silero | edge | say
+voice = "baya"
+wake-word = "вика"        # "" answers everything
+follow-up = 8
+hold = 120
+record = true             # or a file path
+log-days = 14
+```
+
+See `beseda --help` for the full list.
+
+## Speech recognition
+
+Techniques carried over from [Vadic](https://github.com/mikhail-angelov/vadic) and checked on real dialogs:
+loudness normalization before recognition, Whisper's own VAD (without it a cough becomes «Спасибо.», which is a
+stop phrase), a style prompt for punctuation plus your `vocabulary` for terms, greedy decoding at temperature 0.
+
+| `whisper` | Time per phrase (M1) | Notes |
+|---|---|---|
+| `small` (default) | ~0.5 s | Occasional wrong words |
+| `turbo` (large-v3-turbo-q5_0) | ~2.1 s | Far more accurate; 574 MB |
+
+Models other apps already downloaded (VoiceInk, Vadic) are reused.
+
+## Speech synthesis
+
+| `tts` | Voices | Runs | Per sentence | CPU per second of speech | RAM |
+|---|---|---|---|---|---|
+| `silero` (default) | xenia, baya, kseniya, aidar, eugene | locally | 0.04 s | 16 ms | ~760 MB |
+| `say` | Milena | locally (macOS) | 0.6 s | 140 ms | ~40 MB |
+| `edge` (experimental) | ru-RU-SvetlanaNeural, ru-RU-DmitryNeural | Microsoft cloud | 1–2 s | 60 ms | ~55 MB |
+
+Silero skips digits and Latin letters, so the voice prompt asks the model to write numbers and names in Russian
+words. Compare the voices by ear: `beseda-samples` writes the same phrase in every voice to
+`~/Downloads/beseda-tts-samples/`.
+
+## Logs and recordings
+
+Each session logs to `~/.beseda/logs/beseda-<time>.log`; logs older than `log-days` are deleted on start.
+
+```bash
+grep summary ~/.beseda/logs/*.log | tail      # latency per turn: stt, llm_first_token, tts_first_audio, voice_to_voice
+grep -E 'ERROR|WARNING' ~/.beseda/logs/*.log   # incidents
+```
+
+`--debug` adds every pi event. `--record` saves the dialog to `~/Downloads/beseda-<time>.wav` on exit.
+
+## Security
+
+With the default `pi` brain the agent has **full access**: it reads and writes files and runs shell commands in
+the current folder, by voice. Recognition makes mistakes. Run Beseda only in folders where that is acceptable,
+and keep them under version control.
+
+## Privacy
+
+- Recognition, synthesis with `silero` or `say`, logs and recordings stay on your Mac.
+- What you say to the assistant (after the wake word) is sent to the LLM provider: DeepSeek by default.
+- With `tts = "edge"` the answers are sent to Microsoft.
+- Logs contain the full text of your dialogs, including phrases that weren't addressed to the assistant;
+  they are kept for `log-days` days.
+
+## Model licenses
+
+Beseda's code is MIT, and no models are bundled: they download to your machine on first use.
+- **Silero TTS** (default voice): [CC BY-NC-SA 4.0](https://github.com/snakers4/silero-models/blob/master/LICENSE),
+  **non-commercial use only**. For commercial use pick `say` or `edge`, or obtain a license from Silero.
+- **Whisper** models and the Silero VAD used by whisper.cpp: MIT.
+- **Edge TTS** uses an unofficial endpoint of the Microsoft Edge read-aloud service and may stop working.
+
+## Extending
+
+- A brain (`beseda/brains.py`) yields `("text", …)`, `("tool", …)`, `("error", …)` events and supports `abort()`;
+  register it in `BRAINS`.
+- A TTS engine (`beseda/tts.py`) subclasses `PcmEngine` with `render(text) -> PCM`; register it in `TTS_ENGINES`.
+
+## Development
+
+```bash
 uv sync
-uv run python -m pogo                    # агент pi с deepseek/deepseek-v4-flash (полный доступ к инструментам)
-uv run python -m pogo --brain deepseek   # просто чат с DeepSeek, нужен DEEPSEEK_API_KEY
+uv run pytest
+uv tool install --editable .   # the beseda command picks up code changes
 ```
 
-Пробел — начать/остановить разговор, Esc — перебить ответ, q — выход.
-Пока ассистент говорит, микрофон выключен, чтобы он не слышал сам себя.
+## License
 
-Опции: `--model` (модель для brain), `--whisper small|medium|large-v3-turbo`, `--tts`, `--voice`, `--debug`, `--record [PATH]`.
-
-`--record` пишет весь диалог в один WAV так, как он звучал: ваш голос с микрофона и голос ассистента
-на общей шкале времени, с реальными паузами (ожидание ответа, работа инструментов). Файл сохраняется
-при выходе по `q`, по умолчанию в `~/Downloads/`.
-
-## Синтез речи
-
-| `--tts` | Голоса (`--voice`) | Где | Синтез фразы | Заметки |
-|---|---|---|---|---|
-| `silero` (по умолчанию) | xenia, baya, kseniya, aidar, eugene | локально, CPU | ~0,1 с | лицензия некоммерческая; цифры и латиницу не читает (промпт просит писать их словами) |
-| `edge` | ru-RU-SvetlanaNeural, ru-RU-DmitryNeural | облако Microsoft | 1–3 с | самые естественные; неофициальный доступ, текст уходит в Microsoft |
-| `piper` | ru_RU-irina/denis/dmitri/ruslan-medium | локально | ~0,3 с | синтетичнее Silero |
-| `say` | Milena | локально | ~0,7 с | механический; лучше скачать Milena (Enhanced) в настройках «Устный контент» |
-
-Модели скачиваются при первом запуске в `~/.pogo/models/`.
-
-Сравнить на слух — одна фраза всеми движками и голосами в `~/Downloads/pogo-tts-samples/`:
-
-```bash
-uv run python -m pogo.samples                     # все движки
-uv run python -m pogo.samples --engines silero --text "Своя фраза"
-```
-
-## Логи
-
-Каждая сессия пишет `~/.pogo/logs/pogo-<время>.log` (путь печатается при старте). В терминал логи не выводятся.
-
-- `turn=N +X.XXs <этап>` — хронология хода от начала вашей речи: `speech_end`, `transcribed`, `prompt_sent`,
-  `first_text`, `tool`, `sentence_synth_start/end`, `audio_start`, `audio_end`, `done`.
-- `turn=N summary` — задержки хода (то же видно в терминале после ответа):
-  `stt` (распознавание), `llm_first_token`, `tts_first_audio`, `voice_to_voice` (от конца вашей фразы до первого звука), `tools`, `total`.
-- `pogo.tts: synthesized …` — время синтеза и длина аудио на каждое предложение; пустое аудио — `ERROR`.
-- `pogo.brain` — запросы, вызовы инструментов с длительностью, токены, ретраи, stderr pi.
-- `answer has … but no audio was played` — ответ был, а звука не было.
-- `--debug` добавляет все события pi и смены статуса.
-
-```bash
-grep summary ~/.pogo/logs/pogo-*.log | tail     # задержки по ходам
-grep -E 'ERROR|WARNING' ~/.pogo/logs/pogo-*.log  # инциденты
-```
-
-## Brains
-
-`pogo/brains.py`: brain отдаёт поток событий `("text", …)`, `("tool", …)`, `("error", …)` и умеет `abort()`.
-Новый бэкенд (Claude, Codex, …) — класс с `ask`/`abort`/`close` и строка в `BRAINS`.
-Новый TTS — наследник `PcmEngine` с методом `render(text) -> PCM` и строка в `TTS_ENGINES` (`pogo/tts.py`).
+[MIT](LICENSE)

@@ -1,6 +1,6 @@
 """Speak the same phrase with every TTS engine and voice to compare them by ear.
 
-uv run python -m pogo.samples [--engines silero edge] [--text "..."]
+uv run python -m beseda.samples [--engines silero edge] [--text "..."]
 """
 
 import argparse
@@ -11,9 +11,9 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from pogo.tts import TTS_ENGINES
+from beseda.tts import TTS_ENGINES
 
-OUT_DIR = Path.home() / "Downloads" / "pogo-tts-samples"
+OUT_DIR = Path.home() / "Downloads" / "beseda-tts-samples"
 TEXT = (
     "Привет! Я посмотрел проект: в папке четыре файла, и все тесты проходят. "
     "Хочешь, расскажу подробнее, что именно я поменял и почему?"
@@ -21,7 +21,7 @@ TEXT = (
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="pogo.samples", description=__doc__)
+    parser = argparse.ArgumentParser(prog="beseda.samples", description=__doc__)
     parser.add_argument("--engines", nargs="+", choices=TTS_ENGINES, default=list(TTS_ENGINES))
     parser.add_argument("--text", default=TEXT)
     args = parser.parse_args()

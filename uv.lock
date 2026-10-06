@@ -258,6 +258,43 @@ wheels = [
 ]
 
 [[package]]
+name = "beseda"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "edge-tts" },
+    { name = "numpy" },
+    { name = "openai" },
+    { name = "pyaudio" },
+    { name = "realtimestt", extra = ["silero-onnx-cpu", "whisper-cpp"] },
+    { name = "realtimetts" },
+    { name = "resampy" },
+    { name = "rich" },
+    { name = "torch" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "edge-tts", specifier = ">=7.2.8" },
+    { name = "numpy", specifier = ">=2.5.3" },
+    { name = "openai", specifier = ">=3.24.0" },
+    { name = "pyaudio", specifier = ">=0.2.14" },
+    { name = "realtimestt", extras = ["silero-onnx-cpu", "whisper-cpp"], specifier = ">=1.1.2" },
+    { name = "realtimetts", specifier = ">=0.8.10" },
+    { name = "resampy", specifier = ">=0.4.3" },
+    { name = "rich", specifier = ">=15.0.0" },
+    { name = "torch", specifier = ">=2.14.1" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
+
+[[package]]
 name = "certifi"
 version = "2026.7.22"
 source = { registry = "https://pypi.org/simple" }
@@ -800,6 +837,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f5/08/8eea9d4b8302028f3abb2c0813953f7aec26d33b7a8960ed760e65ff29fa/idna-3.20.tar.gz", hash = "sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44", size = 216463, upload-time = "2026-09-17T14:11:04.752Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl", hash = "sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c", size = 69583, upload-time = "2026-09-17T14:11:03.168Z" },
+]
+
+[[package]]
+name = "iniconfig"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
 ]
 
 [[package]]
@@ -1593,32 +1639,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pathvalidate"
-version = "3.3.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/fa/2a/52a8da6fe965dea6192eb716b357558e103aea0a1e9a8352ad575a8406ca/pathvalidate-3.3.1.tar.gz", hash = "sha256:b18c07212bfead624345bb8e1d6141cdcf15a39736994ea0b94035ad2b1ba177", size = 63262, upload-time = "2025-06-15T09:07:20.736Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9a/70/875f4a23bfc4731703a5835487d0d2fb999031bd415e7d17c0ae615c18b7/pathvalidate-3.3.1-py3-none-any.whl", hash = "sha256:5263baab691f8e1af96092fa5137ee17df5bdfbd6cff1fcac4d6ef4bc2e1735f", size = 24305, upload-time = "2025-06-15T09:07:19.117Z" },
-]
-
-[[package]]
-name = "piper-tts"
-version = "1.8.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "onnxruntime" },
-    { name = "pathvalidate" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/02/cc/95b18b58d9c235d8e0bcece7321b7a7347873c14f9fea2c734b31ef04ff2/piper_tts-1.8.0.tar.gz", hash = "sha256:830588aded347df579c91a32703e0fc2a3685d84f1e3533b14f2de69135d4904", size = 24276117, upload-time = "2026-09-04T16:47:31.908Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a7/2f/ad6db2adc635f85e9d2abd8e59bed3f04062c7b33817d519347fd79ad19f/piper_tts-1.8.0-cp39-abi3-macosx_10_9_x86_64.whl", hash = "sha256:98c7dd791b2be0f8732e5c9cefd86c54200ac0360e43c643c937bf18ac0e941a", size = 34111822, upload-time = "2026-09-04T16:47:14.384Z" },
-    { url = "https://files.pythonhosted.org/packages/0a/f9/90e75adb55b3470a73030598c36f9969fe568e8458c066fa9b4fbc78a4c1/piper_tts-1.8.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:33e7425933e9290fe651ae127916ed1ca6104cfa3d94e9049295dd3a5c449382", size = 34119781, upload-time = "2026-09-04T16:47:17.823Z" },
-    { url = "https://files.pythonhosted.org/packages/5e/90/de832b09736db8c26c9b5dd25cb408ed065b1d9535e05c78947aec056e36/piper_tts-1.8.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3f60c1917de6d8e8033f395878ad3f88f6dfee88a8b05f98971a275f76a38484", size = 34131751, upload-time = "2026-09-04T16:47:21.094Z" },
-    { url = "https://files.pythonhosted.org/packages/84/81/0112a7d510911f33018dc24023d1655bb772f84a4e95fe7f0180f66bbd17/piper_tts-1.8.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:25b4d3f31ff70c8fa7151908e00aaa5650cbdf16bca8fcf21299f3941b89a7d3", size = 34131442, upload-time = "2026-09-04T16:47:24.326Z" },
-    { url = "https://files.pythonhosted.org/packages/12/9c/c736d1961cf9ce0655278731b9430df41892ca2ded7b09dabcb340612158/piper_tts-1.8.0-cp39-abi3-win_amd64.whl", hash = "sha256:5da9bfdb05dfe15da3536859d422e605483ffa6d2b3ec2c5b9593bae6b5aa6a4", size = 34119688, upload-time = "2026-09-04T16:47:28.339Z" },
-]
-
-[[package]]
 name = "platformdirs"
 version = "4.12.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1628,26 +1648,12 @@ wheels = [
 ]
 
 [[package]]
-name = "pogo"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "edge-tts" },
-    { name = "openai" },
-    { name = "piper-tts" },
-    { name = "realtimestt", extra = ["silero-onnx-cpu", "whisper-cpp"] },
-    { name = "realtimetts" },
-    { name = "rich" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "edge-tts", specifier = ">=7.2.8" },
-    { name = "openai", specifier = ">=3.24.0" },
-    { name = "piper-tts", specifier = ">=1.8.0" },
-    { name = "realtimestt", extras = ["silero-onnx-cpu", "whisper-cpp"], specifier = ">=1.1.2" },
-    { name = "realtimetts", specifier = ">=0.8.10" },
-    { name = "rich", specifier = ">=15.0.0" },
+name = "pluggy"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
 ]
 
 [[package]]
@@ -1903,6 +1909,22 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/49/2e/ced460408999b33da6b31b0021b0f37d329e202d4169aeb164493778f25b/pygments-2.21.0.tar.gz", hash = "sha256:610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c", size = 5005329, upload-time = "2026-08-17T08:02:48.824Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl", hash = "sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9", size = 1250147, upload-time = "2026-08-17T08:02:44.912Z" },
+]
+
+[[package]]
+name = "pytest"
+version = "9.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "iniconfig" },
+    { name = "packaging" },
+    { name = "pluggy" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
 ]
 
 [[package]]

@@ -16,7 +16,7 @@ from typing import Iterator, Protocol
 
 from openai import OpenAI
 
-log = logging.getLogger("pogo.brain")
+log = logging.getLogger("beseda.brain")
 
 VOICE_PROMPT = (
     "Ты голосовой ассистент: всё, что ты пишешь, озвучивается синтезатором речи. "

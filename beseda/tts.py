@@ -9,19 +9,41 @@ import asyncio
 import io
 import logging
 import os
+import re
 import subprocess
 import tempfile
 import time
 import urllib.request
 import wave
 from pathlib import Path
+from typing import Iterator
 
 import pyaudio
 from RealtimeTTS.engines.base_engine import BaseEngine
 
-log = logging.getLogger("pogo.tts")
+log = logging.getLogger("beseda.tts")
 
-MODELS_DIR = Path.home() / ".pogo" / "models"
+MODELS_DIR = Path.home() / ".beseda" / "models"
+
+
+def speakable(deltas: Iterator[str]) -> Iterator[str]:
+    """Drop fenced code blocks and markdown symbols so the TTS reads only prose."""
+    buf, in_code = "", False
+    for delta in deltas:
+        buf += delta
+        out = ""
+        while (i := buf.find("```")) >= 0:
+            if not in_code:
+                out += buf[:i]
+            buf, in_code = buf[i + 3 :], not in_code
+        # Hold trailing backticks back: they may be the start of a fence split across deltas.
+        tail = len(buf) - len(buf.rstrip("`"))
+        if not in_code:
+            out += buf[: len(buf) - tail]
+        buf = buf[len(buf) - tail :]
+        out = re.sub(r"[*_#`>|]", "", out)
+        if out:
+            yield out
 
 
 class PcmEngine(BaseEngine):
@@ -104,30 +126,8 @@ class SileroEngine(PcmEngine):
         return (audio.clamp(-1, 1) * 32767).short().numpy().tobytes()
 
 
-class PiperEngine(PcmEngine):
-    """Piper (ONNX): local and very fast, noticeably more synthetic than Silero."""
-
-    rate = 22050
-
-    def __init__(self, voice: str):
-        super().__init__(voice)
-        from piper import PiperVoice
-        from piper.download_voices import download_voice
-
-        path = MODELS_DIR / f"{voice}.onnx"
-        if not path.exists():
-            log.info("downloading piper voice %s", voice)
-            download_voice(voice, MODELS_DIR)
-        self.model = PiperVoice.load(str(path))
-        self.rate = self.model.config.sample_rate
-        self.render("Привет.")
-
-    def render(self, text: str) -> bytes:
-        return b"".join(chunk.audio_int16_bytes for chunk in self.model.synthesize(text))
-
-
 class EdgeEngine(PcmEngine):
-    """Microsoft Edge "Read aloud" neural voices: very natural, but cloud and unofficial."""
+    """Microsoft Edge "Read aloud" neural voices: very natural, but cloud, unofficial and experimental."""
 
     rate = 24000
 
@@ -148,7 +148,6 @@ class EdgeEngine(PcmEngine):
 TTS_ENGINES: dict[str, tuple[type[PcmEngine], list[str]]] = {
     "silero": (SileroEngine, ["xenia", "baya", "kseniya", "aidar", "eugene"]),
     "edge": (EdgeEngine, ["ru-RU-SvetlanaNeural", "ru-RU-DmitryNeural"]),
-    "piper": (PiperEngine, ["ru_RU-irina-medium", "ru_RU-denis-medium", "ru_RU-dmitri-medium", "ru_RU-ruslan-medium"]),
     "say": (SayEngine, ["Milena"]),
 }
 

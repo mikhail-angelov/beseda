@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import resampy
 
-log = logging.getLogger("pogo.recording")
+log = logging.getLogger("beseda.recording")
 
 OUTPUT_RATE = 22050
 # A chunk arriving later than this after the previous one starts a new segment (mic was off, assistant was silent).
