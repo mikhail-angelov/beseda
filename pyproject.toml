@@ -1,12 +1,12 @@
 [project]
 name = "beseda"
 version = "0.1.0"
-description = "Voice conversations with your coding agent: a Russian-speaking terminal assistant with local speech recognition and synthesis"
+description = "Voice conversations with your coding agent: a terminal assistant in Russian or English with local speech recognition and synthesis"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Mikhail Angelov", email = "mikhail.angelov@gmail.com" }]
-keywords = ["voice-assistant", "speech-recognition", "text-to-speech", "whisper", "coding-agent", "russian"]
+keywords = ["voice-assistant", "speech-recognition", "text-to-speech", "whisper", "coding-agent", "russian", "english"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",

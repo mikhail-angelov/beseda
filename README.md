@@ -1,5 +1,7 @@
 # Beseda
 
+[![PyPI](https://img.shields.io/pypi/v/beseda)](https://pypi.org/project/beseda/) [![CI](https://github.com/mikhail-angelov/beseda/actions/workflows/ci.yml/badge.svg)](https://github.com/mikhail-angelov/beseda/actions/workflows/ci.yml) [![Python](https://img.shields.io/pypi/pyversions/beseda)](https://pypi.org/project/beseda/) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/mikhail-angelov/beseda/blob/main/LICENSE)
+
 **Voice conversations with your coding agent.** Say “Alice, …” (in Russian, “Вика, …”) and talk to an AI agent in English or Russian, right
 from the terminal: speech recognition and synthesis run locally on your Mac, the agent works in the current folder.
 

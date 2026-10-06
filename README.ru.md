@@ -1,5 +1,7 @@
 # Beseda
 
+[![PyPI](https://img.shields.io/pypi/v/beseda)](https://pypi.org/project/beseda/) [![CI](https://github.com/mikhail-angelov/beseda/actions/workflows/ci.yml/badge.svg)](https://github.com/mikhail-angelov/beseda/actions/workflows/ci.yml) [![Python](https://img.shields.io/pypi/pyversions/beseda)](https://pypi.org/project/beseda/) ![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/mikhail-angelov/beseda/blob/main/LICENSE)
+
 **Голосовой разговор с ИИ-агентом.** Скажите «Вика, …» и разговаривайте с агентом по-русски или по-английски прямо из терминала:
 распознавание и синтез речи работают локально на Mac, агент работает в текущей папке.
 
