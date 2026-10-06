@@ -1,0 +1,13 @@
+[project]
+name = "pogo"
+version = "0.1.0"
+description = "Голосовой ассистент в терминале: локальные STT/TTS + DeepSeek или агент pi"
+requires-python = ">=3.12"
+dependencies = [
+    "edge-tts>=7.2.8",
+    "openai>=3.24.0",
+    "piper-tts>=1.8.0",
+    "realtimestt[silero-onnx-cpu,whisper-cpp]>=1.1.2",
+    "realtimetts>=0.8.10",
+    "rich>=15.0.0",
+]
