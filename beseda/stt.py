@@ -1,13 +1,20 @@
-"""Speech recognition settings, carried over from Vadic where they were measured on real dictations."""
+"""Speech recognition: GigaAM for Russian, whisper.cpp with the settings Vadic measured on real dictations."""
 
 import logging
 import re
 from pathlib import Path
 
+from RealtimeSTT.transcription_engines.factory import ENGINE_CLASS_PATHS
+
+from beseda import gigaam
 from beseda.language import Language
 from beseda.models import MODELS_DIR, cached
 
 log = logging.getLogger("beseda.stt")
+
+# RealtimeSTT creates engines by name from this table, in a worker process on macOS; that process imports the app
+# again, so the entry is there too.
+ENGINE_CLASS_PATHS["gigaam"] = ("beseda.gigaam", "GigaAMEngine")
 
 SUPPORT = Path.home() / "Library" / "Application Support"
 
@@ -39,13 +46,26 @@ def whisper_model(name: str) -> str:
     return model_path(name) if name in MODELS else name
 
 
-def recorder_options(whisper: str, vocabulary: list[str], language: Language) -> dict:
+def recorder_options(stt: str, vocabulary: list[str], language: Language) -> dict:
+    if stt == "gigaam":
+        if language.code != "ru":
+            raise SystemExit("--stt gigaam recognizes Russian only")
+        if vocabulary:
+            log.warning("vocabulary is ignored: GigaAM takes no prompt")
+        gigaam.download(MODELS_DIR)
+        return {
+            "transcription_engine": "gigaam",
+            "model": gigaam.MODEL,
+            "download_root": str(MODELS_DIR),
+            "language": language.code,
+            "normalize_audio": True,
+        }
     # The style prompt is a neutral sentence in the spoken language: it brings punctuation, capitals and "ё"
     # without biasing the words; the vocabulary keeps the spelling of terms.
     terms = ", ".join(vocabulary) + "." if vocabulary else ""
     return {
         "transcription_engine": "whisper_cpp",  # Metal on Apple Silicon, ~2x faster than faster-whisper on CPU
-        "model": whisper_model(whisper),
+        "model": whisper_model(stt),
         "download_root": str(MODELS_DIR),  # Whisper models next to the others, not in pywhispercpp's cache
         "language": language.code,
         "beam_size": 1,  # greedy, as in Vadic: same text as beam 5 on real phrases

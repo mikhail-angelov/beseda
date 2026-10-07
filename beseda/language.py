@@ -21,6 +21,7 @@ def normalize(text: str) -> str:
 @dataclass(frozen=True)
 class Language:
     code: str  # Whisper language and sentence splitting
+    stt: str  # default speech recognition: gigaam or a Whisper model
     wake_word: str
     wake_endings: list[str]  # grammatical endings the wake word may take: Вика, Вику, Вике
     style_prompt: str  # a neutral sentence that primes Whisper's punctuation
@@ -59,6 +60,7 @@ def load(code: str) -> Language:
         raise SystemExit(f"Unknown language {code!r}; available: {', '.join(available())}")
     return Language(
         code=data["code"],
+        stt=data["stt"],
         wake_word=data["wake_word"],
         wake_endings=data["wake_endings"],
         style_prompt=data["style_prompt"],

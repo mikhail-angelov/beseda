@@ -1,4 +1,5 @@
 code = "ru"
+stt = "gigaam"  # GigaAM v3: faster and more accurate than Whisper for Russian
 wake_word = "вика"
 # Endings the wake word may take, so "Вика", "Вику", "Вике", "Викой" all work.
 wake_endings = ["", "а", "у", "е", "и", "ы", "о", "ой", "ою", "ей"]

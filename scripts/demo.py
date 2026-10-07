@@ -27,6 +27,8 @@ import traceback
 import types
 from pathlib import Path
 
+import beseda.stt  # noqa: F401  registers GigaAM; RealtimeSTT's worker process re-imports this script, not child()
+
 COLS, ROWS = 100, 24
 DEADLINE_SECONDS = 300  # the whole scenario; a stuck agent or VAD must not hang the script
 DOCS = Path(__file__).resolve().parent.parent / "docs"
@@ -65,7 +67,7 @@ def child(language_code: str, marker: Path, recording: Path) -> None:
     language = load(language_code)
     app_module.Microphone = lambda feed: types.SimpleNamespace(on=False, close=lambda: None)  # speech comes from feeder
     args = argparse.Namespace(
-        language=language_code, brain="pi", model=None, whisper="small", vocabulary=[], tts="silero", voice=None,
+        language=language_code, brain="pi", model=None, stt=language.stt, vocabulary=[], tts="silero", voice=None,
         wake_word=language.wake_word, follow_up=8.0, hold=120.0, record=str(recording), log_days=14, debug=False,
     )
     app = app_module.App(args, language, app_module.setup_logging(False, 14))

@@ -148,7 +148,7 @@ class App:
                 on_audio_stream_stop=self._on_audio_stop,
             )
             self.recorder = AudioToTextRecorder(
-                **recorder_options(args.whisper, args.vocabulary, language),
+                **recorder_options(args.stt, args.vocabulary, language),
                 use_microphone=False,  # fed by the echo-cancelling microphone instead of PyAudio
                 spinner=False,
                 level=logging.ERROR,
@@ -483,8 +483,10 @@ def main() -> None:
     parser.add_argument("--language", choices=available(), default="ru", help="language pack: what you speak and hear")
     parser.add_argument("--brain", choices=BRAINS, default="pi")
     parser.add_argument("--model", help="model for the brain (pi, deepseek: DeepSeek V4 Flash; codex: from ~/.codex/config.toml)")
-    parser.add_argument("--whisper", default="small", help="Whisper model: small (fast) or turbo (more accurate, ~2 s per phrase)")
-    parser.add_argument("--vocabulary", nargs="*", default=[], metavar="TERM", help="terms Whisper should spell exactly like this")
+    parser.add_argument(
+        "--stt", help="speech recognition: gigaam (Russian), small or turbo (Whisper); default: from the language pack"
+    )
+    parser.add_argument("--vocabulary", nargs="*", default=[], metavar="TERM", help="terms Whisper should spell exactly like this (not GigaAM)")
     parser.add_argument("--tts", choices=TTS_ENGINES, default="silero", help="speech synthesis engine")
     parser.add_argument("--voice", help="TTS voice (default: the first one in the language pack)")
     parser.add_argument("--wake-word", help='wake word (default: from the language pack); "" answers everything')
@@ -505,6 +507,8 @@ def main() -> None:
     language = load_language(args.language)
     if args.wake_word is None:
         args.wake_word = language.wake_word
+    if args.stt is None:
+        args.stt = language.stt
     if args.record is True:
         args.record = str(RECORDINGS_DIR / f"beseda-{datetime.now():%Y%m%d-%H%M%S}.wav")
     try:

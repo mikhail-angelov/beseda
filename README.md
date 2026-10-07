@@ -13,7 +13,7 @@ from the terminal: speech recognition and synthesis run locally on your Mac, the
 instead of a microphone; recognition, the pi agent and the answers are the real app. Long waits in the GIF are shortened.
 
 ```
-microphone → Silero VAD + whisper.cpp (local) → brain: pi agent, Codex or DeepSeek → TTS: Silero (local) → speakers
+microphone → Silero VAD + GigaAM or whisper.cpp (local) → brain: pi agent, Codex or DeepSeek → TTS: Silero (local) → speakers
 ```
 
 > **Status:** alpha. macOS on Apple Silicon only. Russian (default) and English; more languages are a TOML file away.
@@ -22,8 +22,8 @@ microphone → Silero VAD + whisper.cpp (local) → brain: pi agent, Codex or De
 
 - **Wake word, like a smart speaker.** Only phrases addressed to «Вика» reach the model; after an answer you can
   keep talking without the wake word, «стоп» ends the conversation, «подожди» gives you time to think.
-- **Local speech.** whisper.cpp on the Mac GPU (Metal) for recognition, Silero for synthesis: from the
-  first word of the answer to sound in 0.1–0.25 s.
+- **Local speech.** GigaAM for Russian (0.1–0.3 s per phrase) or whisper.cpp on the Mac GPU for recognition,
+  Silero for synthesis: from the first word of the answer to sound in 0.1–0.25 s.
 - **Pluggable brains.** The [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) coding agent
   (reads and edits files, runs commands), [Codex](https://github.com/openai/codex) or a plain DeepSeek chat;
   adding another agent is one class.
@@ -49,7 +49,7 @@ brew install portaudio
 uv tool install beseda
 ```
 
-Models download on first launch into `~/.beseda/models/` (Whisper small ~490 MB, Silero ~145 MB, VAD ~1 MB).
+Models download on first launch into `~/.beseda/models/` (GigaAM ~890 MB for Russian or Whisper small ~490 MB for English, Silero ~145 MB, VAD ~1 MB).
 
 ## Use
 
@@ -84,7 +84,7 @@ Any option can be set in `~/.beseda/config.toml`; command-line flags win.
 language = "ru"           # ru | en | your own pack
 brain = "pi"              # pi | codex | deepseek
 model = "deepseek/deepseek-v4-flash"
-whisper = "small"         # small | turbo
+stt = "gigaam"            # gigaam (Russian) | small | turbo
 vocabulary = ["JavaScript", "DeepSeek"]
 tts = "silero"            # silero | edge | say
 voice = "baya"
@@ -109,14 +109,18 @@ adds German (`beseda --language de`). Copy a built-in pack as a starting point; 
 
 ## Speech recognition
 
-Techniques carried over from [Vadic](https://github.com/mikhail-angelov/vadic) and checked on real dialogs:
+Each language pack picks a default `stt`: GigaAM for Russian, Whisper `small` for English.
+
+| `stt` | Time per phrase (M1) | Notes |
+|---|---|---|
+| `gigaam` (default for `ru`) | 0.1–0.3 s, CPU | [GigaAM v3](https://github.com/salute-developers/GigaAM) by Sber: Russian only, punctuation and capitals; 890 MB |
+| `small` (default for `en`) | ~0.5 s, Metal | Occasional wrong words |
+| `turbo` (large-v3-turbo-q5_0) | ~2.1 s, Metal | Far more accurate than `small`; 574 MB |
+
+Whisper keeps the techniques from [Vadic](https://github.com/mikhail-angelov/vadic), checked on real dialogs:
 loudness normalization before recognition, Whisper's own VAD (without it a cough becomes «Спасибо.», which is a
 stop phrase), a style prompt for punctuation plus your `vocabulary` for terms, greedy decoding at temperature 0.
-
-| `whisper` | Time per phrase (M1) | Notes |
-|---|---|---|
-| `small` (default) | ~0.5 s | Occasional wrong words |
-| `turbo` (large-v3-turbo-q5_0) | ~2.1 s | Far more accurate; 574 MB |
+GigaAM takes no prompt, so `vocabulary` applies to Whisper only.
 
 Models other apps already downloaded (VoiceInk, Vadic) are reused.
 
@@ -163,7 +167,7 @@ and keep them under version control.
 Beseda's code is MIT, and no models are bundled: they download to your machine on first use.
 - **Silero TTS** (default voice): [CC BY-NC-SA 4.0](https://github.com/snakers4/silero-models/blob/master/LICENSE),
   **non-commercial use only**. For commercial use pick `say` or `edge`, or obtain a license from Silero.
-- **Whisper** models and the Silero VAD used by whisper.cpp: MIT.
+- **GigaAM**, **Whisper** models and the Silero VAD used by whisper.cpp: MIT.
 - **Edge TTS** uses an unofficial endpoint of the Microsoft Edge read-aloud service and may stop working.
 
 ## Extending
