@@ -186,6 +186,10 @@ uv run python scripts/demo.py  # перезаписать docs/demo-ru.gif и .m
 git tag vX.Y.Z && git push origin vX.Y.Z   # релиз: CI проверяет и публикует на PyPI (тег должен совпадать с version в pyproject.toml)
 ```
 
+## См. также
+
+[Vadic](https://github.com/mikhail-angelov/vadic) — диктовка для macOS на том же локальном речевом стеке: держишь клавишу, говоришь, и whisper.cpp печатает текст в любое приложение. Beseda превращает голос в разговор с агентом, Vadic — в текст.
+
 ## Лицензия
 
 [MIT](LICENSE)

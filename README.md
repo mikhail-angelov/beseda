@@ -188,6 +188,10 @@ uv run python scripts/demo.py  # re-record docs/demo-ru.gif and .mp4; --language
 git tag vX.Y.Z && git push origin vX.Y.Z   # release: CI tests and publishes to PyPI (the tag must match the version in pyproject.toml)
 ```
 
+## See also
+
+[Vadic](https://github.com/mikhail-angelov/vadic) is push-to-talk dictation for macOS on the same local speech stack: hold a key, speak, and whisper.cpp types the text into any app. Beseda turns your voice into a conversation with an agent; Vadic turns it into text.
+
 ## License
 
 [MIT](https://github.com/mikhail-angelov/beseda/blob/main/LICENSE)
